@@ -7,6 +7,10 @@ import * as C from './constants.js';
  */
 
 export const PALETTE = [0x68e4ef, 0xaab8ff, 0xc4a5ff, 0xffad9b, 0x77b9ff, 0xf29bd3];
+export const SCAN_RANGE = 18;
+export const SHOT_RANGE = 90;
+const SHOT_HALF_ANGLE = 12 * Math.PI / 180;
+const SHOT_VERTICAL_TOLERANCE = 30;
 const TAU = Math.PI * 2;
 const SHIP_RADIUS = 1.4;
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
@@ -241,6 +245,55 @@ export function findNearestFile(world, position, maxDistance = Infinity) {
     }
   }
   return nearest;
+}
+
+/** Nearby files need no aim; ranged shots use yaw with forgiving altitude. */
+export function findScanCandidate(world, ship, focusedFileId = null) {
+  const files = world?.files || [];
+  const rangeTo = (file) => Math.hypot(file.position.x - ship.position.x, file.position.y - ship.position.y, file.position.z - ship.position.z);
+  const focused = files.find((file) => file.id === focusedFileId);
+  if (focused && rangeTo(focused) <= SCAN_RANGE) return focused;
+  const nearby = findNearestFile(world, ship.position, SCAN_RANGE);
+  if (nearby) return nearby;
+  // Keep the atlas lock in range, but never override a point-blank file.
+  if (focused && rangeTo(focused) <= SHOT_RANGE) return focused;
+
+  let best = null, bestAngle = Infinity, bestDistance = Infinity;
+  for (const file of files) {
+    const dx = file.position.x - ship.position.x, dy = file.position.y - ship.position.y, dz = file.position.z - ship.position.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance > SHOT_RANGE || Math.abs(dy) > SHOT_VERTICAL_TOLERANCE || Math.hypot(dx, dz) === 0) continue;
+    const heading = Math.atan2(-dx, -dz);
+    const angle = Math.abs(Math.atan2(Math.sin(heading - ship.yaw), Math.cos(heading - ship.yaw)));
+    if (angle > SHOT_HALF_ANGLE) continue;
+    if (angle < bestAngle || angle === bestAngle && distance < bestDistance) {
+      best = file; bestAngle = angle; bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+/** A shot leaves the ship's nose and keeps its launch/impact points as flight continues. */
+export function createFileShot(ship, file) {
+  const start = { x: ship.position.x - Math.sin(ship.yaw) * 5.4, y: ship.position.y + .6, z: ship.position.z - Math.cos(ship.yaw) * 5.4 };
+  const end = { ...file.position };
+  const distance = Math.hypot(end.x - start.x, end.y - start.y, end.z - start.z);
+  return { file, start, end, distance, duration: Math.max(.45, distance / 100), age: 0, progress: 0, phase: 'flight' };
+}
+
+/** Emit each event once, leaving a visible impact beat before the modal opens. */
+export function stepFileShot(shot, dt) {
+  if (shot.phase === 'complete') return null;
+  shot.age += clamp(finite(dt), 0, .1);
+  if (shot.phase === 'flight') {
+    shot.progress = Math.min(1, shot.age / shot.duration);
+    if (shot.progress < 1) return null;
+    shot.phase = 'impact'; shot.age = 0;
+    return 'impact';
+  }
+  if (shot.age < .2) return null;
+  shot.phase = 'complete';
+  return 'open';
 }
 
 export function formatBytes(value) {

@@ -67,3 +67,13 @@ Real controls in the in-app browser verified:
 - Escape followed by L works from both surface and space; the transition clears pause and completes. Enter during a transition is ignored without an exception.
 
 Final checks: **126 tests passed**, `npm run check` checked **54 JavaScript modules**, `npm run build` produced the static app, and `git diff --check` passed. Native Chrome/Edge directory-handle permission UI still needs an interactive check on the eventual deployed origin; automated handle tests and real snapshot selection cover the source logic here. A 2020-laptop GPU benchmark was not available. The separate onboarding redesign #19 remains excluded.
+
+### Main-branch conflict resolution — 2026-09-08
+
+Main advanced to `2db7ec0` after PR25 added issue24's ranged E opening. Its single-layer controller, controls, styles and README overlapped this branch's two-layer rewrite. The resolution merges main into the feature branch without rewriting published history, retains the upstream shot model/tests, and adapts the behavior to canonical surface atoms and the existing layer/source generations.
+
+- E remains instant and aim-free within 18 units. Farther away it uses the upstream 90-unit ship-heading selection, angle/altitude tolerance and local atlas lock, with nearby atoms taking priority. A distinct E prompt and file panel name that candidate while the movable Q reticle still identifies its independent probe target.
+- A reusable renderer shows the nose flash, travelling bolt and 0.2-second impact before the viewer opens. Flight continues during the shot; the ranged viewer preserves velocity for resuming. Nearby opening, Q probes and tour arrivals retain their previous hold behavior.
+- Shots cancel on pause, dialogs, picker entry, focus loss, another course, reset, layer/source changes and removed atoms. Tests reject reused file paths from an obsolete source or surface generation. The renderer owns a bounded set of resources and preserves the shared glow texture on disposal.
+- All **142 tests** pass, including the eleven upstream targeting/shot tests, two lifecycle regressions and three renderer tests. Syntax checks cover **58 modules**, the static build passes, and no merge markers or unmerged index entries remain.
+- Real browser controls verified nearby E, cruising through flight and impact with the viewer still closed, velocity retained while reading and resumed afterward, Escape/atlas cancellation without a delayed viewer, Q opening, and safe cancellation during lift-off. A screenshot confirmed the visible bolt and separate E/Q labels; console checks reported no errors or warnings. Existing hosted-picker and older-GPU verification limits above still apply.

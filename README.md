@@ -63,7 +63,7 @@ The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can
 | Shift | Boost |
 | Space | Brake |
 | L | Land inside a body's landing ring; lift off from a surface |
-| E | Open a surface atom within 18 units |
+| E | Open a surface atom within 18 units, or aim the ship and fire from up to 90 units |
 | Mouse / touch drag | Aim independently of the ship |
 | Q / scene click | Fire a probe at an atom, or plan a landing route to a body |
 | C | Recenter the reticle along the ship's heading |
@@ -121,7 +121,9 @@ In M, search for atoms and **Queue** several, then choose **Fly this route**. **
 
 ## Open a file
 
-E opens the nearest eligible atom within 18 units. Q or a scene click launches a cosmetic probe from the ship and opens its target on impact, without moving the ship. Surface probes reach 160 units, take 0.3–0.8 seconds, and recharge in 0.65 seconds. Space targeting reaches 600 units and plans a landing route. A miss or out-of-range shot gives feedback and opens nothing.
+E opens a nearby atom instantly within 18 units, with no aiming required. From farther away, aim the ship at an atom up to 90 units away and press E to fire a visible bolt. It travels from the nose, flashes for 0.2 seconds on impact, then opens the viewer; cruising continues during the shot and velocity resumes after closing. Shots use a 12° horizontal half-angle, allow 30 units of vertical offset, and prefer angular accuracy. A local atlas-selected atom stays locked inside 90 units, with nearby atoms taking priority. The E prompt and file panel name this candidate; the movable Q reticle names the independent probe target. Pause, another course, a dialog, reset, a layer/source change or lost focus cancels a pending E shot.
+
+Q or a scene click launches a cosmetic probe from the ship and opens its target on impact, without moving the ship. Surface probes reach 160 units, take 0.3–0.8 seconds, and recharge in 0.65 seconds. Space targeting reaches 600 units and plans a landing route. A miss or out-of-range shot gives feedback and opens nothing.
 
 Text/code, images, PDFs, audio and video display in the read-only viewer. Text previews are capped at 256 KiB and rendered as text, including source HTML/SVG. Closing the viewer returns to the same position. Charting happens only after opening succeeds; reopening an atom does not duplicate progress.
 

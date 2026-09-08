@@ -1,6 +1,15 @@
 import * as THREE from "/vendor/three.module.js";
 import * as C from "./constants.js";
-import { stepShip, formatBytes } from "./model.js";
+import {
+  stepShip,
+  formatBytes,
+  findScanCandidate,
+  createFileShot,
+  stepFileShot,
+  SHOT_RANGE,
+} from "./model.js";
+import { resolveShotAtom } from "./file-shots.js";
+import { createShotRenderer } from "./render-shot.js";
 import {
   buildSpaceWorld,
   buildPlanetWorld,
@@ -90,6 +99,7 @@ const state = {
   focusedFileId: null,
   reticle: { x: 0, y: 0, target: null },
   probe: null,
+  shot: null,
   lastFired: -Infinity,
   time: 0,
   fps: 60,
@@ -310,6 +320,7 @@ const probeMesh = new THREE.Mesh(
 );
 scene.add(probeMesh);
 probeMesh.visible = false;
+const shotRenderer = createShotRenderer({ THREE, scene, glow });
 let trail = [];
 const trailPositions = new Float32Array(70 * 3),
   trailGeometry = new THREE.BufferGeometry();
@@ -361,6 +372,7 @@ function anyDialog() {
   );
 }
 function closePanels() {
+  cancelShot();
   for (const dialog of document.querySelectorAll("dialog[open]"))
     if (dialog.id !== "file-viewer") dialog.close();
 }
@@ -455,6 +467,7 @@ function showFolderError(message) {
   toast(message);
 }
 function clearFolderWorld() {
+  cancelShot();
   resetting = true;
   fileViewer.close();
   closePanels();
@@ -744,6 +757,7 @@ async function loadWorld() {
 }
 function chooseSnapshot() {
   if (state.connecting || state.choosing) return;
+  cancelShot();
   clearInput();
   state.choosing = true;
   state.pickerVersion++;
@@ -754,6 +768,7 @@ function chooseSnapshot() {
 }
 async function chooseFolder() {
   if (state.connecting || state.choosing) return;
+  cancelShot();
   if (
     state.snapshotFallback ||
     typeof window.showDirectoryPicker !== "function" ||
@@ -976,6 +991,7 @@ function updateCapture() {
 }
 function resetShip() {
   if (!activeWorld() || transition()) return;
+  cancelShot();
   manualControl();
   state.probe = null;
   trail = [];
@@ -999,23 +1015,15 @@ function resetShip() {
 
 function scanCandidate() {
   if (state.layer.name !== "planet" || !state.planetWorld) return null;
-  const focus = state.planetWorld.atoms.find(
-    (a) => a.id === state.focusedFileId,
-  );
-  if (focus && distance(focus.position, state.ship.position) <= C.OPEN_RANGE)
-    return focus;
-  return (
-    [...state.planetWorld.atoms]
-      .filter((a) => distance(a.position, state.ship.position) <= C.OPEN_RANGE)
-      .sort(
-        (a, b) =>
-          distance(a.position, state.ship.position) -
-          distance(b.position, state.ship.position),
-      )[0] || null
+  return findScanCandidate(
+    { files: state.planetWorld.atoms },
+    state.ship,
+    state.focusedFileId,
   );
 }
 async function openAtom(atom, via = "manual") {
   if (!atom || state.layer.name !== "planet" || transition()) return false;
+  cancelShot();
   if (
     via === "tour" &&
     distance(atom.position, state.ship.position) > C.OPEN_RANGE
@@ -1044,9 +1052,11 @@ async function openAtom(atom, via = "manual") {
     state.destination = null;
   }
   state.focusedFileId = atom.id;
-  state.holding = true;
+  if (via !== "ranged") {
+    state.holding = true;
+    state.ship.velocity = zero();
+  }
   clearInput();
-  state.ship.velocity = zero();
   const opened = await fileViewer.open({
     ...atom,
     path: atom.id,
@@ -1067,15 +1077,58 @@ async function openAtom(atom, via = "manual") {
   return opened;
 }
 function scanFile() {
-  if (!state.launched || state.paused || anyDialog() || transition()) return;
+  if (
+    !state.launched ||
+    state.paused ||
+    anyDialog() ||
+    transition() ||
+    state.shot ||
+    state.probe
+  )
+    return;
   if (state.layer.name === "space")
     return toast("Land first. Press L inside a planet's landing ring.");
   const atom = scanCandidate();
   if (!atom)
     return toast(
-      "Move within 18 units of an atom to open it. Use M to set a course.",
+      "Aim the ship at an atom within 90 units, or approach within 18 units. M sets a course.",
     );
-  openAtom(atom);
+  if (distance(atom.position, state.ship.position) <= C.OPEN_RANGE)
+    return openAtom(atom);
+  pauseTour();
+  state.route = null;
+  state.destination = null;
+  state.focusedFileId = atom.id;
+  clearInput();
+  state.shot = {
+    ...createFileShot(state.ship, atom),
+    sourceVersion: state.sourceVersion,
+    planetId: state.layer.planetId,
+    generation: state.layerGeneration,
+  };
+  document.body.classList.add("shot-preview");
+  clearTimeout(toastTimer);
+  $("toast").classList.remove("show");
+  shotRenderer.update(state.shot);
+}
+function cancelShot() {
+  state.shot = null;
+  shotRenderer.update(null);
+  document.body.classList.remove("shot-preview");
+}
+function updateShot(dt) {
+  if (!state.shot) return;
+  const atom = resolveShotAtom(state.shot, {
+    ...state,
+    atoms: state.planetWorld?.atoms,
+    dialogOpen: anyDialog(),
+    hidden: document.hidden,
+  });
+  if (!atom) return cancelShot();
+  if (stepFileShot(state.shot, dt) === "open") {
+    cancelShot();
+    openAtom(atom, "ranged");
+  } else shotRenderer.update(state.shot);
 }
 function updateReticle() {
   if (!state.launched || !activeWorld() || transition()) {
@@ -1096,6 +1149,7 @@ function updateReticle() {
 }
 function fire() {
   if (!state.launched || state.paused || anyDialog() || transition()) return;
+  cancelShot();
   updateReticle();
   const target = state.reticle.target;
   if (state.time - state.lastFired < PROBE_COOLDOWN)
@@ -1157,9 +1211,14 @@ function updateProbe() {
 
 function setCourse(target, { tour = false } = {}) {
   if (transition() || !state.spaceWorld) return;
+  cancelShot();
   if (!state.launched) launch();
   if (!state.launched) return;
   if (!tour) pauseTour();
+  state.focusedFileId =
+    target.kind === "atom" && target.planetId === state.layer.planetId
+      ? target.id
+      : null;
   state.route = planRoute(
     { layer: state.layer.name, planetId: state.layer.planetId },
     target,
@@ -1844,6 +1903,7 @@ function showConstants() {
 }
 function togglePause() {
   if (!state.launched || transition()) return;
+  cancelShot();
   state.paused = !state.paused;
   clearInput();
   text("pause-button", state.paused ? "▷" : "Ⅱ");
@@ -1908,7 +1968,8 @@ function updateHUD(dt) {
     "coordinates",
     `X ${number(state.ship.position.x, 0)}   Y ${number(state.ship.position.y, 0)}   Z ${number(state.ship.position.z, 0)}`,
   );
-  $("reticle").hidden = !state.launched || transition();
+  $("reticle").hidden =
+    !state.launched || state.paused || anyDialog() || transition();
   $("reticle").style.left = `${(state.reticle.x * 0.5 + 0.5) * 100}%`;
   $("reticle").style.top = `${(-state.reticle.y * 0.5 + 0.5) * 100}%`;
   const target = state.reticle.target,
@@ -1917,7 +1978,7 @@ function updateHUD(dt) {
   text(
     "reticle-label",
     target
-      ? `${target.object.name || target.id} · ${number(target.distance, 0)} u${target.distance > range ? " · OUT OF RANGE" : ""}`
+      ? `Q · ${target.object.name || target.id} · ${number(target.distance, 0)} u${target.distance > range ? " · OUT OF RANGE" : ""}`
       : "",
   );
   $("tour-note").hidden =
@@ -2075,17 +2136,24 @@ function updateHUD(dt) {
       ["Luminosity", `${number(b.luminosity)} bytes/day`],
       ["Excitation ratio ξ", number(b.xi, 4)],
     ]);
-    const focused = target?.object || scanCandidate() || a;
+    const candidate = scanCandidate();
+    const focused = state.shot?.file || candidate || target?.object || a;
     if (focused && state.launched) {
       const d = distance(focused.position, state.ship.position);
       $("file-panel").hidden = false;
       text(
         "file-status",
-        state.charted.has(focused.id)
-          ? "CHARTED SIGNAL"
-          : d <= C.OPEN_RANGE
-            ? "WITHIN SCAN RANGE"
-            : "SIGNAL DETECTED",
+        state.shot
+          ? state.shot.phase === "flight"
+            ? "SHOT IN FLIGHT"
+            : "SIGNAL HIT"
+          : candidate && d > C.OPEN_RANGE
+            ? "IN E SHOT RANGE"
+            : state.charted.has(focused.id)
+              ? "CHARTED SIGNAL"
+              : d <= C.OPEN_RANGE
+                ? "WITHIN SCAN RANGE"
+                : "SIGNAL DETECTED",
       );
       text("file-name", focused.name);
       text("file-path", focused.path);
@@ -2093,7 +2161,20 @@ function updateHUD(dt) {
       text("file-type", focused.element || "ATOM");
       text("file-size", formatBytes(focused.atomicMass));
       text("file-age", focused.status || "unknown");
-      $("scan").disabled = !scanCandidate() || state.paused || transition();
+      $("scan").disabled =
+        !candidate ||
+        state.paused ||
+        anyDialog() ||
+        transition() ||
+        !!state.shot ||
+        !!state.probe;
+      $("scan").firstChild.textContent = state.shot
+        ? "Firing… "
+        : !candidate
+          ? "Aim ship or approach "
+          : d > C.OPEN_RANGE
+            ? "Fire to open "
+            : "Open file ";
     }
   }
   const landing =
@@ -2107,13 +2188,18 @@ function updateHUD(dt) {
         : state.layer.name === "ascending"
           ? `Lifting off from ${nameOf(state.layer.planetId)}…`
           : surface()
-            ? "L LIFT OFF · E OPEN"
+            ? state.shot
+              ? `E · ${state.shot.file.name} · ${state.shot.phase === "flight" ? "FIRING" : "HIT"}`
+              : scanCandidate()
+                ? `E · ${scanCandidate().name} · ${distance(scanCandidate().position, state.ship.position) > C.OPEN_RANGE ? "FIRE TO OPEN" : "OPEN"}`
+                : "L LIFT OFF · E AIM SHIP / OPEN NEARBY · Q AIM PROBE"
             : state.layer.capture.held
               ? `CAPTURED · L LAND ON ${nameOf(state.layer.capture.bodyId)}`
               : landing
                 ? `L LAND ON ${landing.name}`
                 : "Fly inside a landing ring · L LAND",
   );
+  $("layer-prompt").dataset.shot = String(!!state.shot);
   $("land-button").disabled =
     !state.launched || transition() || (!surface() && !landing);
   $("land-button").querySelector("span").textContent = surface()
@@ -2224,6 +2310,22 @@ function diagnostics() {
           id: state.probe.id,
           progress: state.probe.progress,
           position: { ...state.probe.position },
+        }
+      : null,
+    shot: state.shot
+      ? {
+          id: state.shot.file.id,
+          phase: state.shot.phase,
+          progress: state.shot.progress,
+          start: { ...state.shot.start },
+          end: { ...state.shot.end },
+        }
+      : null,
+    scanCandidate: scanCandidate()
+      ? {
+          id: scanCandidate().id,
+          distance: distance(scanCandidate().position, state.ship.position),
+          range: SHOT_RANGE,
         }
       : null,
     light: { ...state.light },
@@ -2381,9 +2483,15 @@ addEventListener("keydown", (event) => {
   keyDown(event.code);
 });
 addEventListener("keyup", (event) => keys.delete(event.code));
-addEventListener("blur", clearInput);
+addEventListener("blur", () => {
+  clearInput();
+  cancelShot();
+});
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clearInput();
+  if (document.hidden) {
+    clearInput();
+    cancelShot();
+  }
 });
 for (const button of document.querySelectorAll("[data-key]")) {
   button.addEventListener("pointerdown", (event) => {
@@ -2437,6 +2545,8 @@ function animate(time) {
     frameDt = Math.max(0, now - (animate.last || now)),
     dt = Math.min(0.05, frameDt);
   animate.last = now;
+  // Validate interruptions and open after the visible impact before freezing the frame.
+  updateShot(dt);
   const paused = state.paused || anyDialog() || document.hidden;
   state.fps += ((frameDt ? 1 / frameDt : 60) - state.fps) * 0.02;
   if (!paused) state.time += frameDt;

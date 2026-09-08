@@ -322,3 +322,7 @@
   .atlas-rankings{grid-template-columns:1fr}.atlas-rankings>div{padding:10px}.atlas-row>div:first-child{flex-basis:100%}.atlas-row>button{padding:9px 13px}
   #toast{bottom:208px;z-index:22}.center-top{max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;font-size:7px}.center-top #root-name{overflow:hidden;text-overflow:ellipsis}
 }
+
+/* Keep the E bolt and impact visible while independent Q aiming remains available. */
+.layer-prompt[data-shot=true]{top:calc(50% - 12px);left:auto;right:calc(50% + 35px);transform:translateY(-50%);max-width:min(240px,38vw);color:var(--cyan);overflow-wrap:anywhere}
+@media(max-width:700px){body.shot-preview .mission,body.shot-preview .instrument-stack,body.shot-preview .tour-note,body.shot-preview #toast{visibility:hidden}}
