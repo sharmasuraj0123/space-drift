@@ -28,7 +28,7 @@ test('metadata affects visual mass and recency while island count stays bounded'
 test('constant controls are independent of ordinary display frame rates', () => {
   const run = (fps) => {
     const ship = newShip();
-    for (let frame = 0; frame < fps * 2; frame++) stepShip(ship, { thrust: 1, turn: 0.2 }, {}, 1 / fps, { currents: false });
+    for (let frame = 0; frame < fps * 2; frame++) stepShip(ship, { thrust: 1, turn: 0.2 }, {}, 1 / fps, { field: false });
     return ship;
   };
   const at30 = run(30);
@@ -44,7 +44,7 @@ test('small file collision prevents a boosted ship tunneling through a file', ()
   ship.position = { x: 0, y: 0, z: 6 };
   ship.velocity.z = -120;
   const world = { files: [{ position: { x: 0, y: 0, z: 0 }, radius: 0.9 }] };
-  stepShip(ship, { thrust: 1, boost: true }, world, 0.1, { currents: false });
+  stepShip(ship, { thrust: 1, boost: true }, world, 0.1, { field: false });
   assert(ship.position.z >= 2.3);
   assert(ship.velocity.z > -120);
 });
@@ -54,26 +54,16 @@ test('vertical collision encloses the rendered crystal tip', () => {
   ship.position = { x: 0, y: 10, z: 0 };
   ship.velocity.y = -100;
   const crystal = { position: { x: 0, y: 0, z: 0 }, radius: 2.7, mass: 12 };
-  stepShip(ship, { lift: -1, boost: true }, { files: [crystal] }, 0.1, { currents: false });
+  stepShip(ship, { lift: -1, boost: true }, { files: [crystal] }, 0.1, { field: false });
   const visibleTip = crystal.radius * (1.3 + crystal.mass * 0.08);
   assert(ship.position.y >= visibleTip + 1.4);
 });
 
-test('larger files exert a stronger but bounded local pull; currents can be disabled', () => {
-  const fly = (mass, currents = true, count = 1) => {
-    const ship = newShip();
-    ship.position = { x: 10, y: 0, z: 0 };
-    const crystal = { position: { x: 0, y: 0, z: 0 }, radius: 1, mass };
-    stepShip(ship, {}, { files: Array(count).fill(crystal) }, 0.1, { currents });
-    return ship;
-  };
-  const small = fly(1);
-  const large = fly(12);
-  const disabled = fly(12, false);
-  assert(small.velocity.x < 0);
-  assert(large.velocity.x < small.velocity.x);
-  assert.equal(disabled.velocity.x, 0);
-  assert(Math.abs(fly(12, true, 2000).velocity.x) < 0.121);
+test('legacy file metadata no longer adds an implicit attraction force', () => {
+  const ship = newShip();
+  ship.position = { x: 10, y: 0, z: 0 };
+  stepShip(ship, {}, { files: [{ position: { x: 0, y: 0, z: 0 }, radius: 1, mass: 12 }] }, .1);
+  assert.equal(ship.velocity.x, 0);
 });
 
 test('exact-center collision, invalid state, and delayed frames remain finite', () => {
