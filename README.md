@@ -1,8 +1,6 @@
 # Space Drift
 
-![A ship flying through glowing folder districts and file crystals in space.](assets/space-drift-hero.svg)
-
-Fly a small ship through a living map of a local folder. Folders form districts, file size gives objects mass, and file activity creates currents you can feel while flying. The hosted game runs entirely in your browser: choose a folder, fly through its metadata, and press E to read a file locally. An optional Node.js server retains desktop-app integration for local use.
+Fly a small ship through your local workspace as a two-layer universe. Repositories are planets; land on one to explore its folders as molecules and files as atoms. Bytes create mass, recent changes add excitation, and that excitation produces gravity, heat, and light which fade together. Press E to open an atom in a read-only local viewer.
 
 ## Use a local folder in the browser
 
@@ -57,128 +55,112 @@ The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can
 
 ## Fly
 
-- W / up arrow: thrust forward.
-- S / down arrow: reverse thrust.
-- A / D or left / right arrows: steer.
-- R / F: rise / descend.
-- Shift: boost.
-- Space: brake.
-- E: open the selected file within 18 units. Opening a new file also charts it; visited files can be reopened.
-- M: open the atlas; search for a file or choose a folder to fly there automatically. Any steering input returns manual control.
-- Escape: pause or resume flight. H: open the flight manual.
-- Home: return to the launch point.
+| Control | Action |
+| --- | --- |
+| W / S or up / down | Thrust / reverse |
+| A / D or left / right | Steer |
+| R / F | Rise / descend |
+| Shift | Boost |
+| Space | Brake |
+| L | Land inside a body's landing ring; lift off from a surface |
+| E | Open a surface atom within 18 units |
+| Mouse / touch drag | Aim independently of the ship |
+| Q / scene click | Fire a probe at an atom, or plan a landing route to a body |
+| C | Recenter the reticle along the ship's heading |
+| M | Layer-aware atlas, search, and route queue |
+| T | Guided tours, resume, skip, and exit |
+| G | Cycle the active layer's overlay |
+| Home | Return to this layer's launch or landing site |
+| Escape / H | Pause or resume / flight manual |
 
-Click **Launch expedition** to begin. Chart five files to complete the first expedition, then keep exploring. Exploration progress lasts for the current browser session. Touch controls provide forward thrust, left/right steering, and opening files; the atlas handles longer trips.
+A one-body folder starts on its surface. A larger workspace starts in space. The first expedition asks you to chart five available atoms and land on up to three available bodies, so small folders remain completable. Touch buttons provide steering, thrust, braking, altitude, opening, probes, landing, tours, and overlays; **Details** opens the instrument panel on a narrow screen.
 
-The interface includes exploration and navigation controls. A live directory handle or the optional local server refreshes the world every five seconds while the page is open; a directory-input snapshot requires choosing the folder again. Edit, add, rename, or move a file in your normal editor or file manager to create activity. The game itself does not change your files.
+Cross a landing ring slowly to be captured and held; press L to land. Thrust releases capture. Boost can skim through a ring above escape speed. Taking off places you on the same approach side with outward velocity; capture re-arms after leaving 1.5 times the landing radius. On a surface, hold R with boost to climb; remaining above 80 units for one second lifts off automatically. Transitions disable flight integration and take 1.5 seconds down / 1.2 seconds up. Landing also waits for the survey; one failed retry causes an automatic lift-off.
 
-## Tech stack
-
-| Layer | Technology | Role |
-| --- | --- | --- |
-| Hosted app | Static HTML, CSS, and JavaScript ES modules | Runs the game without a backend. |
-| 3D rendering | [Three.js](https://threejs.org/) | Draws the space map and ship. |
-| Browser files | Directory handles or `webkitdirectory` file snapshots | Reads selected-folder metadata and on-demand local previews. |
-| Build / preview | Node.js 20+ and native filesystem/HTTP APIs | Copies public assets and serves a local static preview. |
-| Optional local server | Native `node:http`, filesystem APIs and streams | Supplies bounded filesystem scans, file previews, and desktop integration. |
-| Tests | Node.js built-in test runner | Covers scanning, file access, physics, and HTTP boundaries. |
-
-## Architecture
-
-```text
-Vercel / static host                     YOUR COMPUTER
-┌─────────────────────┐           ┌────────────────────────────────────┐
-│ HTML + CSS + JS     │ ────────>  │ Browser: ship, world, atlas, viewer │
-│ Three.js modules   │           │                ↕                   │
-└─────────────────────┘           │ Chosen local folder / file snapshot│
-                                 └────────────────────────────────────┘
-                                  Metadata and contents stay here.
-
-Optional local mode on the same computer:
-Browser ↔ 127.0.0.1 Node server ↔ eligible local files / macOS opener
-```
-
-The hosted app reads a user-selected folder through browser file APIs. Map metadata and file previews remain in the browser; there is no hosted `/api/world` or file-content service. In optional local-server mode, `/api/world` provides snapshots and the local file endpoints provide previews, with paths confined to the eligible map. The built `runtime.json` sets `localServer: false`, so hosted pages skip local API requests; the optional Node server overrides that route with `localServer: true`.
-
-## Flight and exploration flow
-
-```text
-Open Space Drift
-    |
-    v
-Choose folder / load local snapshot ----> districts, file crystals, activity currents
-    |
-    v
-Launch expedition
-    |
-    +--> Manual flight: W/A/S/D, R/F, Shift, Space
-    |          |
-    |          +--> approach a crystal and press E
-    |          |          |
-    |          |          +--> open local preview --> close / Escape --> resume at the same location
-    |          |          |
-    |          |          +--> first visit charts the file --> 5 charted files complete the expedition
-    |          |
-    |          +--> press M --> search atlas or choose a district/file --> guided flight
-    |                                                              |
-    +--------------------------------------------------------------+--> any steering input returns to manual flight
-```
-
-## Open a file
-
-Approach a crystal and press **E**, or use **M** to find a file and fly to it. Space Drift pauses flight while the file viewer is open and holds position after guided arrival; any movement key resumes manual flight. Text/code, images, PDFs, audio, and video display inside the viewer. Press **Escape** or close the viewer to return to the same location.
-
-In optional local-server mode on macOS, **Open in desktop app** opens documents in their normal application; text and code use the text editor. Files without a built-in preview retain this option where appropriate. Unknown, archive, and executable formats use **Show in Finder**. These desktop actions are unavailable in hosted/browser-folder mode.
+The atlas can land, fly by, search across surveyed bodies, or fly to a local molecule or atom. Routes perform lift-off, interplanetary flight and landing when needed. A body-only fly-by stays in space. Manual steering cancels a route and pauses any tour. The Physics switch disables field forces while retaining collisions and the surface floor.
 
 ## How the map works
 
-- Top-level folders form up to 24 districts; nested files retain their full relative paths and are searchable in the atlas. Additional folders are grouped into an overflow district.
-- File sizes provide relative mass. Recently changed files provide activity.
-- A live browser directory detects created, modified, and deleted files using relative paths, sizes, and modification times. A rename or move appears as deletion plus creation because browser handles do not expose a stable filesystem identity. The optional Node scanner can match a unique filesystem identity and report a move.
-- The initial scan establishes a baseline. There is no historical change log before the folder is opened.
-- Event history holds the latest 40 changes in memory. Browser-folder history resets with the folder session; local-server history resets when the server restarts.
+**System discovery.** The selected workspace is searched for repository markers up to three directory levels deep. Grouping folders become constellations. Loose files form a landable asteroid belt. Nested repositories remain molecules inside their parent planet, with their own Git enrichment where available. A workspace with more than 64 bodies uses a bounded overflow body whose members appear in the atlas. Linked worktrees are recognized from a `.git` file. Browser snapshots can omit empty/hidden Git markers; those selections still play as a belt and show the limitation.
 
-File crystals have collision and gentle gravity proportional to logarithmic file size. Floating platforms, folder markers and route lines are passable map decoration. These forces and routes are a game interpretation of metadata, not measured disk traffic or semantic relationships between file contents. Nested files share their top-level district; there are no nested-folder interiors yet.
+**Matter.** An atom's rest mass is its file size in bytes. A molecule's mass is the sum of its direct atoms and child molecules. A body's mass is the sum of its atoms exactly once. Physical radii use logarithmic sizing; accounting mass stays additive. Constellation rings and nested surface rings pack with collision clearance. Root README files sit beside the landing site; a body without root files gets a safe nearby atom instead.
 
-The browser source maps at most 2,500 files, inspects at most 25,000 directory entries, limits nesting to 32 levels, and limits scanning to ten seconds. It shares the map budget across top-level folders so smaller districts remain represented. Hidden entries, dependency and build folders, common cache folders, and private-key extensions are excluded; unsafe or duplicate relative paths are unavailable. The optional Node scanner applies comparable bounds and also excludes symlinks. Omission counts are exact when discovery finishes, or flagged as a lower bound when an entry, depth, time, or access limit prevents a full count. Creation and deletion events are suppressed across incomplete live scans to avoid inventing activity.
+**Activity.** Each atom carries an excitation ledger. For a change of relative size rho, the previous excitation decays, then `mass × rho` is added, capped at the atom's mass at that event. Effective mass is rest mass plus excitation. The half-life is 72 hours. Node mode reads each repository's history from the last 90 days, ignores merge commits, and includes staged, dirty and untracked work. Churn is added plus deleted lines divided by current lines, capped at one. Binary/unavailable line counts use a bounded estimate. Nested Git enrichment is capped at eight repositories per body. Git failures and browser mode use modification times and observed changes instead. An existing file's snapshot touch adds at most 5% of its mass; a creation can fully excite it. A unique filesystem move carries its ledger; browser snapshots without stable identities may observe a delete and create instead.
 
-## Local data access
+**Space physics.** The potential of a body is `−G × effective mass / sqrt(distance² + radius²)`. The field adds all bodies and pulls the ship down the potential gradient. A derived G calibrates the heaviest surveyed rest-mass body to a pull of 50 units/sec² at twice its radius. The derived c² puts that body's rest horizon at twice its radius. Capture uses the larger of the current horizon and the radius plus a 30-unit atmosphere. These are designed game rules, not a simulation of real gravity or measured disk traffic. Recalibration blends over one second as discovery readiness changes.
 
-**Hosted/browser-folder mode:** the page reads only the folder or file snapshot selected through the browser picker. Metadata and file contents are kept on your device; Space Drift sends neither to Vercel, a database, or an AI service. Text previews are rendered as plain text and capped at 256 KiB, including source HTML and SVG. Supported image, PDF, audio, and video previews use local browser object URLs; unsupported formats can be opened separately using your file manager. The static host serves the application assets and receives ordinary asset requests, not your chosen folder.
+**Surface physics.** A surface has a capped downward gravity, softened attraction to child molecules, short-range atom attraction with a continuous cutoff, and more drag around dense bonds. Hot molecules buffet the ship deterministically. The root molecule contributes mass but does not duplicate child cohesion or bond-entry events. The floor prevents falling through; the outer edge pushes inward. Boost provides enough lift to leave the surface. The chemistry and astrophysics panels show the same landed body's mass and luminosity at a common survey revision and time.
 
-**Optional Node mode:** the server binds to `127.0.0.1`, accepts only its own local host and origin, and confines file access to currently mapped, eligible files. `/api/world` returns names, relative paths, sizes, modification times, and recent metadata changes. `/api/file` reads a requested mapped file for preview, and `/api/file-content` streams image/PDF/audio/video content. Text previews are capped at 256 KiB; executable HTML is never rendered as a page. The same-origin JSON desktop endpoint uses the macOS opener without a shell. Source and script files open as text; unknown and executable formats are revealed in Finder. An external desktop application uses its own settings.
+**Light.** Luminosity is the decay rate times remaining excitation, in bytes per day. A large cold file is massive and dark. A recent commit can make its body heavier and brighter in space, and heat and brighten its atoms and molecules on the surface. Other emitters illuminate dark neighbors with an inverse-square falloff. Emission uses element colors with hotter atoms approaching white. The active renderer uses at most eight body or molecule point lights plus a ship headlamp. Flashes mark actual excitation increases; deleted atoms briefly cool visually without remaining openable or contributing live mass.
 
-## Verify
+Space overlays show curvature, energy, or light. Surface overlays show bonds, temperature, or light. Each layer remembers its own choice. Curvature instruments use the same finite-difference stencil as the field grid. **∑** opens the design and derived constants.
+
+## Guided tours
+
+A tour sequences routes, notes, file reading and short pauses. Closing a file advances the tour; steering or L pauses it, including across a layer change. T resumes from your current position. Completion shows visited stops, distance flown and files opened, with choices to fly again or explore freely.
+
+Create a JSON definition in `<workspace>/.space/tours/` or `<body>/.space/tours/`:
+
+```json
+{
+  "id": "read-first",
+  "title": "Start with the map",
+  "stops": [
+    { "planet": "apps/my-project", "path": "README.md", "note": "Start here.", "open": true },
+    { "planet": "apps/my-project", "molecule": "src", "note": "Explore the source.", "dwellSeconds": 3 },
+    { "planet": "apps/another-project", "path": "src/main.js", "open": true }
+  ]
+}
+```
+
+File and molecule paths are body-relative; atom identity and copied viewer paths are workspace-relative. Omit `planet` in a per-body definition. Root repository id is `.`; loose belt and overflow ids are `__belt__` and `__overflow__`. Actual repositories with reserved names use an escaped id shown by the API. A body-only stop is a space fly-by. Definitions allow 1–64 stops; invalid definitions get individual errors and unmapped stops are skipped. Notes render as plain text.
+
+When no authored onboarding tour exists, a generated tour visits the three heaviest bodies and two brightest, then explores the brightest body's readable entry points. Up to seven local stops prioritize README, PROJECT, PLAN, AGENTS/CLAUDE, package metadata, an entry point, the main source molecule and tests. Available file slots extend the route toward the five-file expedition. The separate action-gated onboarding redesign is not part of these guided tours.
+
+In M, search for atoms and **Queue** several, then choose **Fly this route**. **Copy route JSON** in T exports the route to your clipboard. The game never writes tour files into the mapped folder.
+
+## Open a file
+
+E opens the nearest eligible atom within 18 units. Q or a scene click launches a cosmetic probe from the ship and opens its target on impact, without moving the ship. Surface probes reach 160 units, take 0.3–0.8 seconds, and recharge in 0.65 seconds. Space targeting reaches 600 units and plans a landing route. A miss or out-of-range shot gives feedback and opens nothing.
+
+Text/code, images, PDFs, audio and video display in the read-only viewer. Text previews are capped at 256 KiB and rendered as text, including source HTML/SVG. Closing the viewer returns to the same position. Charting happens only after opening succeeds; reopening an atom does not duplicate progress.
+
+Optional Node mode on macOS can open supported documents in their desktop app and source files in a text editor. Unknown/executable formats are revealed in Finder. Hosted mode keeps previews inside the browser and offers no desktop launcher.
+
+## Local data access and bounds
+
+Selected folders and previews stay on your device. No world payload contains file contents, and nothing is sent to Vercel, a database, or an AI service. The static host receives ordinary application-asset requests. Directory handles last for the page session; disconnecting or switching clears the previous world, caches, route, tour, probes and previews.
+
+The application builds physics from metadata and Git statistics. Git itself may read working-tree data internally to compute dirty diffs; the game adds no separate working-tree text reader for physics. Git runs read-only with fixed argument arrays, optional locks disabled, and external diff/text conversion disabled. A linked worktree can reference a Git directory outside the mapped root; an unavailable directory falls back to snapshot excitation. Bounded `.space/tours` JSON and eligible package entry-point metadata are narrow, explicit content reads for tour navigation. A user-requested file preview is a separate content read.
+
+Discovery is bounded to two seconds, surveys to 1.5 seconds per body with four concurrent surveys. Each body samples up to 2,500 files, 25,000 entries and 32 directory levels, sharing capacity across its top-level molecules. Git enrichment runs separately under a three-second budget with two concurrent jobs and a 15-second cache. Pending bodies remain navigable once surveyed; partial surveys display lower bounds honestly. The current surface is prioritized, other bodies refresh round-robin, and discovery repeats every 30 seconds. Read-space calls serve cached metadata without waiting for background enrichment. Compact search indexes survive idle surface-payload eviction.
+
+Hidden entries, dependencies, generated folders, private-key extensions, unsafe paths and Node symlinks stay outside the file map. Marker discovery never makes `.git` readable through the viewer. Metadata exceptions cannot be opened through ordinary file routes. Browser directory-input snapshots do not refresh until reselected; live handles and Node mode poll every five seconds. Incomplete scans do not invent deletion or creation events.
+
+The optional server binds to loopback, checks host/origin, and confines file access to mapped eligible paths. `/api/world` returns the system, `/api/planet?id=.` safely addresses the root body, `/api/planet/<id>` addresses other exact ids, `/api/search` reads indexes, and `/api/tours` returns resolved routes. `/api/file` and `/api/file-content` retain their preview bounds; `/api/open-file` requires same-origin JSON POST. Protocol version 3 advertises layers and search. Both browser sources expose the same two-layer world contract.
+
+## Verify and develop
 
 ```sh
-npm run check
 npm test
+npm run check
 npm run build
 ```
 
-Tests cover scanning, ignored entries, symlinks, bounded scans, actual file-change detection, concurrent requests, event limits, and HTTP access boundaries.
+The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, and HTTP file boundaries. See [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
 
-The pure model tests additionally cover deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, and empty maps. `npm run check` checks server and browser JavaScript syntax. A read-only `window.__SPACE_DRIFT__.getState()` diagnostic reports position, velocity, current destination, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
+`window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, probes, lighting and renderer counters. These expose observation only; journeys are tested through normal game controls.
 
-Initial flight prototype verified locally on 2026-09-07: all 14 original tests and syntax checks passed; browser playtesting covered launch, keyboard thrust/steering/altitude, atlas search, continuous flight to `PROJECT.md`, targeted E scanning, live creation/modification events, 1280×800 and 390×844 layouts, and a clean browser error log.
+| Files | Responsibility |
+| --- | --- |
+| `lib/discover.mjs`, `lib/scan.mjs`, `lib/git.mjs`, `lib/universe.mjs` | Optional Node discovery, bounded metadata and Git adapters |
+| `public/universe-core.js`, `public/universe-reader.js` | Shared aggregation, ledgers and asynchronous surveys |
+| `public/folder-source.js`, `public/server-source.js` | Browser and server source parity |
+| `public/constants.js`, `energy.js`, `bodies.js`, `field.js`, `model.js` | Derived physics, packing and ship simulation |
+| `public/layers.js`, `planet-loader.js`, `tours.js`, `probes.js` | Pure transitions, loading lifecycle, navigation and probes |
+| `public/light.js`, `render-space.js`, `render-planet.js`, `render-light.js`, `render-common.js` | Shared light model and separate layer rendering |
+| `public/main.js`, `instruments.js`, `index.html`, `styles.css` | Controls, routes, atlas, HUD and diagnostics |
+| `public/viewer.js`, `preview.js`, `lib/files.mjs` | Local preview and file-access boundaries |
+| `vercel.json`, `scripts/build.mjs`, `scripts/preview.mjs` | Static deployment and loopback preview |
 
-The Space Drift update passes 22 tests covering file access, safe text previews, media ranges, and desktop launch arguments with an injected executor. Browser checks verified text and PDF opening with E, reopening a visited file without duplicate progress, paused flight during reading, held arrival, and desktop/mobile viewer layouts.
-
-The hosted-folder update was verified on 2026-09-08: all 37 tests, syntax checks, and the static build pass. Browser checks against the static preview covered selecting a real folder snapshot, atlas-guided flight, E text opening and reopening, switching folders, disconnecting, hidden-file exclusions, and desktop/mobile layouts with no browser errors. The optional Node server still connects automatically. Live directory refresh, permission failures, cancellation, and scan limits are covered by automated handle tests; the native Chrome/Edge directory picker still needs an interactive check on the deployed site.
-
-## Code map
-
-- `vercel.json`: static hosting build and output settings.
-- `scripts/build.mjs`: browser-asset build with the required Three.js modules.
-- `scripts/preview.mjs`: confined static preview on loopback port 4190.
-- `scripts/check.mjs`: syntax checks for app, server, scripts, and test modules.
-- `server.mjs`: optional local HTTP server and access boundaries.
-- `lib/scan.mjs`: bounded folder scan and metadata differences.
-- `lib/files.mjs`: confined file access, bounded previews, and desktop opening.
-- `public/folder-source.js`: bounded browser-directory scans, file snapshots, and live metadata differences.
-- `public/model.js`: repeatable world generation and flight physics.
-- `public/main.js`: Three.js scene, controls, guided flight and exploration.
-- `public/viewer.js` / `viewer.css`: local file viewer and return-to-flight behavior.
-- `public/index.html` / `styles.css`: Space Drift branding and responsive controls.
-
-Inspired by [Building games with Astra](https://developers.openai.com/blog/how-to-build-games-with-astra): begin with a playable experience, separate simulation from rendering, and expose enough state to verify actual journeys.
+Built with vanilla ES modules, [Three.js](https://threejs.org/), native browser file APIs and an optional Node.js server. Inspired by [Building games with Astra](https://developers.openai.com/blog/how-to-build-games-with-astra).

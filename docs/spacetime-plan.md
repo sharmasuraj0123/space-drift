@@ -91,7 +91,7 @@ These are proposed resolutions to gaps or contradictions in the issues, not chan
 ### 4. Integrate flight and the visible sheet in parallel — #14 and #15
 
 - Extract pure navigation/holding logic into `public/navigation.js`. Replace the current velocity-to-target damping with explicit thruster acceleration and fixed 120 Hz accumulated steps; otherwise “no thrust” still brakes away inertial drift.
-- Apply the field once per step. Retire `currentForce()` and the attraction branch of `resolveFileInteractions()` while retaining crystal collision coverage and adding planet-surface collision. Document controls/contact as external forces; gravity has one source.
+- Apply the field once per step. Retire the legacy current force and file-attraction branch while retaining crystal collision coverage and adding planet-surface collision. Document controls/contact as external forces; gravity has one source.
 - Implement brake/hold compensation, capture→hold→escape-attempt transitions, and gravity-aware approach/arrival. Preserve viewer pause, manual steering cancellation and Home recovery. Replace the old currents toggle and flow decoration as part of this migration.
 - Add `public/render-field.js` and `public/render-matter.js`: reusable sheet buffers, contour bands/lines, horizon rings, planet meshes and outward-facing molecular clusters. Keep the current background/fog identity. Match interpolation, centers and approach points to the model.
 - Gate: free fall and distant inertial drift; 30/60/144 Hz agreement; boosted and tip collisions; brake release drift; escape/recapture; guided arrival at the heaviest/lightest planet and dense file clusters; visibly matching well/contour/horizon values.

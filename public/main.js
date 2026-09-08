@@ -19,7 +19,12 @@ import {
   planRoute,
   nextLeg,
 } from "./layers.js";
-import { createTourState, tourReducer, exportTour, refreshTourState } from "./tours.js";
+import {
+  createTourState,
+  tourReducer,
+  exportTour,
+  refreshTourState,
+} from "./tours.js";
 import { createPlanetLoader } from "./planet-loader.js";
 import {
   selectTarget,
@@ -362,7 +367,7 @@ function closePanels() {
 function nameOf(id) {
   return (
     state.spaceWorld?.bodies.find((b) => b.id === id)?.name ||
-    state.transitionBody?.name ||
+    (state.transitionBody?.id === id ? state.transitionBody.name : null) ||
     id
   );
 }
@@ -937,7 +942,7 @@ function advanceLayer(dt) {
     state.lastTakeoffAt = Date.now();
     state.previousInstruments = null;
     trail = [];
-    }
+  }
 }
 function updateCapture() {
   if (state.layer.name !== "space") return;
@@ -1011,7 +1016,10 @@ function scanCandidate() {
 }
 async function openAtom(atom, via = "manual") {
   if (!atom || state.layer.name !== "planet" || transition()) return false;
-  if (via === "tour" && distance(atom.position, state.ship.position) > C.OPEN_RANGE) {
+  if (
+    via === "tour" &&
+    distance(atom.position, state.ship.position) > C.OPEN_RANGE
+  ) {
     // A refresh can repack a stop between arrival and opening; fly to it again.
     if (state.tour) state.tour = { ...state.tour, status: "travelling" };
     state.route = null;
@@ -1247,7 +1255,7 @@ function resolveDestination(leg) {
       ...point,
       y: leg.kind === "atom" ? Math.max(6, point.y + 2) : 9,
     },
-    stopDistance: leg.kind === "atom" ? 10 : Math.max(12, item.clusterRadius),
+    stopDistance: leg.kind === "atom" ? 11 : Math.max(12, item.clusterRadius),
   };
 }
 function routeInput() {
@@ -1435,10 +1443,13 @@ function renderTourPanel() {
   );
   let group = null;
   for (const tour of sorted) {
-    const next = tour.planet ? nameOf(tour.planet) : "System tours";
+    const next = tour.planet || "system";
     if (next !== group) {
       const h = document.createElement("h3");
-      h.textContent = next;
+      const body = state.spaceWorld?.bodies.find((b) => b.id === tour.planet);
+      h.textContent = tour.planet
+        ? body?.path || nameOf(tour.planet)
+        : "System tours";
       $("tour-list").append(h);
       group = next;
     }
@@ -1871,7 +1882,7 @@ function updateMission() {
     `Chart ${goal} ${goal === 1 ? "atom" : "atoms"}. Land on ${bodiesGoal} ${bodiesGoal === 1 ? "body" : "bodies"}.`;
   text(
     "mission-state",
-    !available ? "AWAITING ATOMS" : progress === 1 ? "COMPLETE" : "IN PROGRESS",
+    progress === 1 ? "COMPLETE" : !available ? "AWAITING ATOMS" : "IN PROGRESS",
   );
 }
 function updateHUD(dt) {
@@ -2345,7 +2356,11 @@ const actions = {
 function keyDown(code) {
   if (movementKeys.includes(code)) {
     if (state.launched && !state.paused && !transition()) {
-      manualControl();
+      if (code === "Space") {
+        pauseTour();
+        state.route = null;
+        state.destination = null;
+      } else manualControl();
       keys.add(code);
       tapUntil.set(code, performance.now() + 90);
     }
@@ -2419,19 +2434,29 @@ $("scene").addEventListener("pointercancel", () => (pointerStart = null));
 function animate(time) {
   requestAnimationFrame(animate);
   const now = time / 1000,
-    dt = Math.min(0.05, Math.max(0, now - (animate.last || now)));
+    frameDt = Math.max(0, now - (animate.last || now)),
+    dt = Math.min(0.05, frameDt);
   animate.last = now;
   const paused = state.paused || anyDialog() || document.hidden;
-  state.fps += ((dt ? 1 / dt : 60) - state.fps) * 0.02;
-  if (!paused) state.time += dt;
-  if (state.layer.name === "space" && state.planetWorld && Date.now() - state.lastTakeoffAt > C.PLANET_CACHE_MS) {
+  state.fps += ((frameDt ? 1 / frameDt : 60) - state.fps) * 0.02;
+  if (!paused) state.time += frameDt;
+  if (
+    state.layer.name === "space" &&
+    state.planetWorld &&
+    Date.now() - state.lastTakeoffAt > C.PLANET_CACHE_MS
+  ) {
     state.planetWorld = null;
     state.planetPayload = null;
     planetRenderer.reset();
   }
   if (state.spaceWorld)
-    refreshWorldPhysics(state.spaceWorld, state.planetWorld, Date.now(), dt);
-  if (!paused && transition()) advanceLayer(dt);
+    refreshWorldPhysics(
+      state.spaceWorld,
+      state.planetWorld,
+      Date.now(),
+      frameDt,
+    );
+  if (!paused && transition()) advanceLayer(frameDt);
   if (state.launched && !paused) {
     if (!transition() && activeWorld()) {
       driveTour(dt);
