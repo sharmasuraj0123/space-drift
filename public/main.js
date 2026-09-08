@@ -2472,6 +2472,7 @@ function keyDown(code) {
 }
 addEventListener("keydown", (event) => {
   if (
+    (event.target instanceof Element && event.target.closest("a[href]")) ||
     event.target instanceof HTMLInputElement ||
     event.target instanceof HTMLTextAreaElement ||
     anyDialog()
