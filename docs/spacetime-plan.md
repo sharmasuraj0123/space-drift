@@ -2,6 +2,8 @@
 
 Planning draft, 2026-09-08. Code baseline: `6b37efc`. This document proposes implementation; it does not mark any issue complete.
 
+> Superseded by the repository-as-planet, two-layer issue rewrite later on 2026-09-08. See [the latest issue review](latest-issue-review.md) before planning implementation. This older draft remains here as historical context.
+
 ## Outcome
 
 Keep the small ship and local file-opening loop. Replace the independent activity currents and file attraction with one explainable model: files are atoms, nested directories are molecules, top-level directories are planets, and changes excite atoms. The same remaining excitation increases a planet’s gravitational influence and produces its light. A pilot can find active work by flying toward a bright molecular cluster, read the file, and see its contribution to the planet’s mass.
