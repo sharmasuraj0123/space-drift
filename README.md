@@ -2,11 +2,13 @@
 
 ![A ship flying through glowing folder districts and file crystals in space.](assets/space-drift-hero.svg)
 
-Fly a small ship through a living map of a local folder. Folders form districts, file size gives objects mass, and file activity creates currents you can feel while flying. The hosted game runs entirely in your browser: choose a folder, fly through its metadata, and press E to read a file locally. An optional Node.js server retains desktop-app integration for local use.
+Fly a small ship through a living map of a local folder. Folders form districts, files appear as crystals, file size gives objects mass, and file activity creates currents you can feel while flying. The hosted game runs entirely in your browser: choose a folder, fly through its metadata, and press E to read a file locally. An optional Node.js server can scan a folder automatically instead.
+
+This README documents the shipped district/crystal explorer. The repository description's repositories as planets, folders as molecules, and files as atoms describe the planned [Spacetime model](docs/spacetime-plan.md), not the current map.
 
 ## Use a local folder in the browser
 
-Open the hosted HTTPS app and choose a folder through the folder button. The browser grants Space Drift read access to that selection; files are not uploaded. WebGL is required for the game.
+Open the [hosted app](https://quirq-test-xmu6.vercel.app) and choose a folder through the folder button. The browser grants Space Drift read access to that selection; files are not uploaded. WebGL is required for the game.
 
 - **Chrome and Edge:** the directory-handle picker allows the game to scan the chosen folder again every five seconds while the page is open. Edits and newly added or removed files become activity in the world. The picker requires a secure context (HTTPS, or a trusted loopback development address) and a direct click. See the [directory picker API](https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker).
 - **Other browsers:** the directory-input fallback provides a snapshot of the selected files through `webkitdirectory`. Choose the folder again to refresh it after changes. The browser may label the selection as an upload, but Space Drift processes that selection locally. Relative paths come from the [browser's File API](https://developer.mozilla.org/en-US/docs/Web/API/File/webkitRelativePath).
@@ -18,6 +20,7 @@ Folder access lasts for this page session. Browsers can deny access to protected
 Requires Node.js 20 or newer and npm for development and builds. The deployed app does not need a Node server.
 
 ```sh
+git clone https://github.com/sharmasuraj0123/space-drift.git
 cd space-drift
 npm ci
 npm run build
@@ -47,13 +50,13 @@ The original Node mode remains available for automatic scanning and desktop-app 
 npm start
 ```
 
-Open [local server mode](http://127.0.0.1:4188). Its default map is the parent folder containing this repository (the `quirq` project in the original workspace). To select another folder or port:
+Open [local server mode](http://127.0.0.1:4188). The default map is the parent directory containing this repository. To select another folder or port:
 
 ```sh
 npm start -- --root "/absolute/path/to/your/folder" --port 4188
 ```
 
-The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can use the local filesystem scanner and the supported macOS desktop opener.
+The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, the optional local server can use the filesystem scanner, and on macOS it supports desktop-app opening (documents open in their normal application; text and code use the text editor; unknown and executable formats are revealed in Finder).
 
 ## Fly
 
@@ -128,8 +131,6 @@ Launch expedition
 
 Press **E** to open a nearby crystal (within 18 units, no aiming needed), or aim the ship at a signal up to 90 units away and fire with the same key. The centre reticle lights up and names the file that will open. A ranged shot visibly launches from the ship, travels to the crystal, and flashes on impact before opening the viewer; you can keep flying during the shot. Nearby opens remain instant. Ranged shots use a 12° horizontal half-angle and allow up to 30 units of vertical offset; aim matters more than distance, and an atlas-selected file stays locked while within 90 units (nearby files still take priority). Use **M** to find a file and set a course. Space Drift pauses flight while the file viewer is open: a ranged shot preserves your velocity for closing the viewer, while a nearby open or guided arrival holds position until a movement key resumes manual flight. Text/code, images, PDFs, audio, and video display inside the viewer. Press **Escape** or close the viewer to return to the same location.
 
-In optional local-server mode on macOS, **Open in desktop app** opens documents in their normal application; text and code use the text editor. Files without a built-in preview retain this option where appropriate. Unknown, archive, and executable formats use **Show in Finder**. These desktop actions are unavailable in hosted/browser-folder mode.
-
 ## How the map works
 
 - Top-level folders form up to 24 districts; nested files retain their full relative paths and are searchable in the atlas. Additional folders are grouped into an overflow district.
@@ -156,15 +157,9 @@ npm test
 npm run build
 ```
 
-Tests cover scanning, ignored entries, symlinks, bounded scans, actual file-change detection, concurrent requests, event limits, and HTTP access boundaries.
+`npm run check` checks server and browser JavaScript syntax. Tests cover scanning, ignored entries, symlinks, bounded scans, file-change detection, concurrent requests, event limits, HTTP access boundaries, deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, empty maps, file access, safe text previews, media ranges, and desktop launch arguments.
 
-The pure model tests additionally cover deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, and empty maps. `npm run check` checks server and browser JavaScript syntax. A read-only `window.__SPACE_DRIFT__.getState()` diagnostic reports position, velocity, current destination, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
-
-Initial flight prototype verified locally on 2026-09-07: all 14 original tests and syntax checks passed; browser playtesting covered launch, keyboard thrust/steering/altitude, atlas search, continuous flight to `PROJECT.md`, targeted E scanning, live creation/modification events, 1280×800 and 390×844 layouts, and a clean browser error log.
-
-The Space Drift update passes 22 tests covering file access, safe text previews, media ranges, and desktop launch arguments with an injected executor. Browser checks verified text and PDF opening with E, reopening a visited file without duplicate progress, paused flight during reading, held arrival, and desktop/mobile viewer layouts.
-
-The hosted-folder update was verified on 2026-09-08: all 37 tests, syntax checks, and the static build pass. Browser checks against the static preview covered selecting a real folder snapshot, atlas-guided flight, E text opening and reopening, switching folders, disconnecting, hidden-file exclusions, and desktop/mobile layouts with no browser errors. The optional Node server still connects automatically. Live directory refresh, permission failures, cancellation, and scan limits are covered by automated handle tests; the native Chrome/Edge directory picker still needs an interactive check on the deployed site.
+A read-only `window.__SPACE_DRIFT__.getState()` diagnostic reports position, velocity, current destination, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
 
 ## Code map
 
@@ -172,13 +167,21 @@ The hosted-folder update was verified on 2026-09-08: all 37 tests, syntax checks
 - `scripts/build.mjs`: browser-asset build with the required Three.js modules.
 - `scripts/preview.mjs`: confined static preview on loopback port 4190.
 - `scripts/check.mjs`: syntax checks for app, server, scripts, and test modules.
-- `server.mjs`: optional local HTTP server and access boundaries.
+- `server.mjs`: optional local HTTP server, access boundaries, and runtime configuration override.
 - `lib/scan.mjs`: bounded folder scan and metadata differences.
 - `lib/files.mjs`: confined file access, bounded previews, and desktop opening.
 - `public/folder-source.js`: bounded browser-directory scans, file snapshots, and live metadata differences.
 - `public/model.js`: repeatable world generation and flight physics.
 - `public/main.js`: Three.js scene, controls, guided flight and exploration.
 - `public/viewer.js` / `viewer.css`: local file viewer and return-to-flight behavior.
-- `public/index.html` / `styles.css`: Space Drift branding and responsive controls.
+- `public/index.html` / `styles.css`: app shell and responsive controls.
 
 Inspired by [Building games with Astra](https://developers.openai.com/blog/how-to-build-games-with-astra): begin with a playable experience, separate simulation from rendering, and expose enough state to verify actual journeys.
+
+## Contributing
+
+Report bugs and feature requests through [GitHub Issues](https://github.com/sharmasuraj0123/space-drift/issues). Pull requests are welcome.
+
+## License
+
+This repository does not include a LICENSE file. Contact the maintainer for licensing terms before reuse.
