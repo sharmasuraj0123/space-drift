@@ -326,3 +326,45 @@
 /* Keep the E bolt and impact visible while independent Q aiming remains available. */
 .layer-prompt[data-shot=true]{top:calc(50% - 12px);left:auto;right:calc(50% + 35px);transform:translateY(-50%);max-width:min(240px,38vw);color:var(--cyan);overflow-wrap:anywhere}
 @media(max-width:700px){body.shot-preview .mission,body.shot-preview .instrument-stack,body.shot-preview .tour-note,body.shot-preview #toast{visibility:hidden}}
+
+/* Product attribution stays in the header, with room reserved in the game HUD. */
+:root{--header-height:96px}
+header{height:var(--header-height);display:grid;grid-template-columns:auto minmax(0,1fr) auto 40px 28px;grid-template-rows:40px 18px;align-content:center;gap:4px 20px;padding:10px 36px}
+header .brand{font-size:17px;letter-spacing:4px;gap:10px;min-width:0}
+header .brand svg{flex:none}
+header .connection{min-width:0;overflow:hidden;max-width:100%;justify-self:end}
+header #connection{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .status-dot,header .local-tag{flex:none}
+header .folder-button{margin-left:0;white-space:nowrap}
+.repo-link{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;color:var(--soft);text-decoration:none;transition:color .15s,border-color .15s,background .15s}
+.repo-link svg{width:19px;height:19px}
+.repo-link:hover{color:var(--ink);border-color:var(--accent);background:rgba(170,184,255,.08)}
+.product-meta{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:18px;font-size:10px;line-height:1.5;color:var(--muted);min-width:0}
+.product-by{display:inline-flex;align-items:center;gap:4px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.product-by strong{font-weight:500;color:var(--soft)}
+.product-by>span{margin-left:3px;color:var(--accent)}
+.product-by:hover,.product-by:hover strong{color:var(--ink)}
+.agent-credit{display:flex;align-items:center;gap:7px}
+.agent-pip{width:4px;height:4px;flex:none;background:var(--cyan);border-radius:50%}
+.privacy-note{display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--soft)}
+.privacy-note svg{width:12px;height:12px;flex:none;color:var(--cyan)}
+.center-top{top:calc(var(--header-height) + 24px)}
+.intro,.mission{top:calc(var(--header-height) + 55px)}
+.instrument-stack{top:calc(var(--header-height) + 48px)}
+@media(max-width:1050px){header{padding-inline:24px;column-gap:12px}header .local-tag{display:none}}
+@media(max-width:700px){
+  :root{--header-height:128px}
+  header{grid-template-columns:minmax(0,1fr) auto 40px 28px;grid-template-rows:40px 50px;padding:10px 14px;gap:4px 8px}
+  header .brand{font-size:13px;letter-spacing:2px;gap:8px}
+  header .brand svg{width:19px;height:26px}
+  header .connection{display:none}
+  header .folder-button{font-size:9px;padding:8px}
+  header .product-meta{align-items:flex-start;flex-direction:column;justify-content:center;gap:1px;font-size:10px;line-height:1.6}
+  .agent-credit{gap:6px}
+  .center-top{top:calc(var(--header-height) + 18px)}
+  .intro{top:calc(var(--header-height) + 52px)}
+  .mission{top:calc(var(--header-height) + 42px)}
+  .instrument-stack{top:calc(var(--header-height) + 40px)}
+}
+@media(max-width:360px){header{padding-inline:12px;column-gap:6px}header .brand{font-size:11px;letter-spacing:1.5px;gap:6px}header .brand svg{width:17px;height:23px}header .folder-button{font-size:8px;padding:7px}}
+#intro:not([hidden]) ~ .layer-prompt{display:none}
