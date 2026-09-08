@@ -3,7 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import { createWorldReader } from './lib/scan.mjs';
+import { createUniverseReader } from './lib/universe.mjs';
 import { FileAccessError, launchMappedFile, openMappedFile, parseByteRange, readFilePreview } from './lib/files.mjs';
 
 const APP_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
@@ -45,9 +45,10 @@ function readJsonBody(request, limit = 4096) {
   });
 }
 
-export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
-  const readWorld = createWorldReader(root, scannerOptions);
-  return http.createServer(async (request, response) => {
+export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, universeOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
+  const universe = createUniverseReader(root, { ...universeOptions, scannerOptions });
+  const readWorld = () => universe.mappedAtoms();
+  const server = http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -95,8 +96,16 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
         return send(405, { error: 'Only GET requests are supported on this route.' });
       }
       if (pathname === '/runtime.json') return send(200, { localServer: true });
-      if (pathname === '/api/health') return send(200, { ok: true, name: 'Space Drift', protocolVersion: 2, capabilities: ['file-preview', 'native-file-open'] });
-      if (pathname === '/api/world') return send(200, await readWorld());
+      if (pathname === '/api/health') return send(200, { ok: true, name: 'Space Drift', protocolVersion: 3, capabilities: ['file-preview', 'native-file-open', 'layers', 'space', 'planet', 'search', 'tours'] });
+      if (pathname === '/api/world') return send(200, await universe.readSpace());
+      const parameters = new URL(request.url, `http://${request.headers.host}`).searchParams;
+      if (pathname === '/api/planet' || pathname.startsWith('/api/planet/')) {
+        const id = pathname === '/api/planet' ? parameters.get('id') : pathname.slice('/api/planet/'.length);
+        if (!id) return send(400, { error: 'A body ID is required.' });
+        return send(200, await universe.readPlanet(id));
+      }
+      if (pathname === '/api/search') return send(200, { results: universe.search(parameters.get('q') || '', parameters.has('limit') ? parameters.get('limit') : 60) });
+      if (pathname === '/api/tours') return send(200, await universe.tours());
       if (pathname === '/api/file' || pathname === '/api/file-content') {
         const filePath = new URL(request.url, `http://${request.headers.host}`).searchParams.get('path');
         if (pathname === '/api/file') return send(200, await readFilePreview(root, filePath, readWorld));
@@ -153,7 +162,7 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
         if (!response.destroyed) response.destroy();
         return;
       }
-      if (error instanceof FileAccessError) return send(error.status, { error: error.message });
+      if (error instanceof FileAccessError || error.status === 404) return send(error.status, { error: error.message });
       if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return send(404, { error: 'File not found.' });
       if (error.code === 'ELOOP') return send(403, { error: 'Linked files and folders cannot be opened.' });
       if (error.code === 'EACCES' || error.code === 'EPERM') return send(403, { error: 'Permission denied.' });
@@ -161,6 +170,9 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
       send(500, { error: 'Could not scan this folder. Check that it is still available.' });
     }
   });
+  server.once('close', () => universe.dispose());
+  server.universe = universe;
+  return server;
 }
 
 export async function main(args = process.argv.slice(2)) {

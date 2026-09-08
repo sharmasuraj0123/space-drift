@@ -118,7 +118,9 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   assert.deepEqual(await (await fetch(base + '/runtime.json')).json(), { localServer: true });
   assert.match(await (await fetch(base + '/')).text(), /Space Drift/);
   const world = await (await fetch(base + '/api/world')).json();
-  assert.ok(world.files.some((file) => file.path === 'private.txt'));
+  assert.equal(world.layer, 'space');
+  const planet = await (await fetch(base + '/api/planet?id=__belt__')).json();
+  assert.ok(planet.atoms.some((file) => file.id === 'private.txt'));
   assert.ok(!JSON.stringify(world).includes('must never be served'));
   assert.equal((await fetch(base + '/api/world', { method: 'POST' })).status, 405);
   assert.equal((await fetch(base + '/api/world', { headers: { Origin: 'https://example.com' } })).status, 403);
@@ -145,4 +147,36 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   assert.equal(blockedHost.status, 403);
   assert.ok(!blockedHost.body.includes(root));
   assert.ok(!blockedHost.body.includes('private.txt'));
+});
+
+test('layer routes preserve canonical IDs, raw root dot, exact decoding and surveyed-file membership', async (t) => {
+  const root = await fixture(t);
+  await mkdir(path.join(root, 'group/repo/nested/.git'), { recursive: true });
+  await mkdir(path.join(root, 'group/repo/.git'));
+  await writeFile(path.join(root, 'group/repo/README.md'), 'fixture contents');
+  await writeFile(path.join(root, 'group/repo/nested/inner.js'), 'nested fixture');
+  const server = createServer({ root, universeOptions: { git: false } });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const rawGet = (requestPath) => new Promise((resolve, reject) => {
+    const request = http.get(base, { path: requestPath }, (response) => { let body = ''; response.setEncoding('utf8'); response.on('data', (chunk) => { body += chunk; }); response.on('end', () => resolve({ status: response.statusCode, body: JSON.parse(body) })); }); request.on('error', reject);
+  });
+  assert.equal((await fetch(`${base}/api/file?path=group%2Frepo%2FREADME.md`)).status, 404);
+  const encoded = await (await fetch(`${base}/api/planet/group%2Frepo`)).json();
+  const plain = await (await fetch(`${base}/api/planet/group/repo`)).json();
+  assert.equal(encoded.id, 'group/repo'); assert.equal(plain.id, encoded.id);
+  assert.ok(plain.molecules.some((m) => m.id === 'nested' && m.repo));
+  assert.equal((await fetch(`${base}/api/planet/group/repo/nested`)).status, 404);
+  assert.equal((await fetch(`${base}/api/planet/group%252Frepo`)).status, 404);
+  assert.equal((await rawGet('/api/planet/.')).status, 404);
+  assert.equal((await rawGet('/api/planet/../x')).status, 403);
+  assert.equal((await fetch(`${base}/api/file?path=group%2Frepo%2FREADME.md`)).status, 200);
+  assert.equal((await fetch(`${base}/api/file?path=group%2Frepo%2F.git%2Fconfig`)).status, 403);
+  const search = await (await fetch(`${base}/api/search?q=README`)).json(); assert.deepEqual(search.results.map((entry) => entry.id), ['group/repo/README.md']);
+  const singleRoot = await fixture(t); await mkdir(path.join(singleRoot, '.git')); await writeFile(path.join(singleRoot, 'README.md'), 'root fixture');
+  const single = createServer({ root: singleRoot, universeOptions: { git: false } }); await new Promise((resolve) => single.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise((resolve) => single.close(resolve)));
+  const singleBase = `http://127.0.0.1:${single.address().port}`;
+  const rootPayload = await (await fetch(`${singleBase}/api/planet?id=.`)).json(); assert.equal(rootPayload.id, '.'); assert.equal(rootPayload.atoms[0].id, 'README.md');
+  const rawRoot = await new Promise((resolve, reject) => { const request = http.get(singleBase, { path: '/api/planet/.' }, (response) => { response.resume(); response.on('end', () => resolve(response.statusCode)); }); request.on('error', reject); });
+  assert.equal(rawRoot, 200); assert.equal((await fetch(`${singleBase}/api/file?path=README.md`)).status, 200);
 });
