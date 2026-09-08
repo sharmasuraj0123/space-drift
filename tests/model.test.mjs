@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorld, stepShip, findNearestFile, formatBytes } from '../public/model.js';
+import { buildWorld, stepShip, findNearestFile, findProbeTarget, createProbe, stepProbe, formatBytes } from '../public/model.js';
 
 const file = (path, size = 1024) => ({ path, name: path.split('/').at(-1), size, modifiedAt: '2026-09-07T00:00:00Z' });
 const snapshot = (files) => ({ root: { name: 'My folder' }, scannedAt: '2026-09-07T12:00:00Z', files });
@@ -99,4 +99,27 @@ test('empty folders and nearest-file distance limits are safe', () => {
   assert.equal(findNearestFile(world, { x: 0, y: 0, z: 0 }, 1), null);
   assert.equal(formatBytes(0), '0 B');
   assert.equal(formatBytes(1536), '1.5 KB');
+});
+
+test('probe targeting chooses the closest file within the aim cone', () => {
+  const files = [
+    { id: 'near', position: { x: 0, y: 0, z: -30 } },
+    { id: 'far', position: { x: 0, y: 0, z: -80 } },
+    { id: 'wide', position: { x: 5, y: 0, z: -30 } },
+  ];
+  const target = findProbeTarget(files, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }, { angularTolerance: .04 });
+  assert.equal(target.file.id, 'near');
+  assert.equal(Math.round(target.distance), 30);
+  assert.equal(findProbeTarget(files, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }, { angularTolerance: .04, maxDistance: 20 }), null);
+});
+
+test('probes reject out-of-range targets and arrive over a bounded travel time', () => {
+  const target = { id: 'readme', position: { x: 0, y: 0, z: -80 } };
+  assert.equal(createProbe({ x: 0, y: 0, z: 0 }, target, 60), null);
+  const probe = createProbe({ x: 0, y: 0, z: 0 }, target, 100);
+  assert(probe.duration >= .3 && probe.duration <= .8);
+  assert.equal(stepProbe(probe, probe.duration / 2), false);
+  assert.deepEqual(probe.position, { x: 0, y: 0, z: -40 });
+  assert.equal(stepProbe(probe, probe.duration), true);
+  assert.deepEqual(probe.position, target.position);
 });

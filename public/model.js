@@ -10,6 +10,9 @@ const SHIP_RADIUS = 1.4;
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 const finite = (n, fallback = 0) => Number.isFinite(Number(n)) ? Number(n) : fallback;
 
+export const PROBE_MAX_RANGE = 160;
+export const PROBE_ANGLE_TOLERANCE = .035;
+
 /** Stable unsigned FNV-1a hash; layout never depends on Math.random(). */
 export function hash(value) {
   const text = String(value);
@@ -277,6 +280,59 @@ export function findNearestFile(world, position, maxDistance = Infinity) {
     }
   }
   return nearest;
+}
+
+/**
+ * Select the closest file inside an aim ray's angular cone. The renderer owns
+ * ray construction; keeping this comparison here makes the targeting rule
+ * deterministic and testable without Three.js.
+ */
+export function findProbeTarget(files, origin, direction, { angularTolerance = PROBE_ANGLE_TOLERANCE, maxDistance = Infinity } = {}) {
+  const length = Math.hypot(finite(direction?.x), finite(direction?.y), finite(direction?.z));
+  if (!length || angularTolerance < 0) return null;
+  const ray = { x: finite(direction.x) / length, y: finite(direction.y) / length, z: finite(direction.z) / length };
+  const minimumDot = Math.cos(angularTolerance);
+  let target = null;
+  for (const file of files || []) {
+    const dx = finite(file.position?.x) - finite(origin?.x);
+    const dy = finite(file.position?.y) - finite(origin?.y);
+    const dz = finite(file.position?.z) - finite(origin?.z);
+    const distance = Math.hypot(dx, dy, dz);
+    if (!distance || distance > maxDistance) continue;
+    const dot = (dx * ray.x + dy * ray.y + dz * ray.z) / distance;
+    if (dot < minimumDot || (target && distance >= target.distance)) continue;
+    target = { file, distance, angle: Math.acos(clamp(dot, -1, 1)) };
+  }
+  return target;
+}
+
+/** Create a cosmetic probe. A null result means its target is out of range. */
+export function createProbe(origin, target, maxDistance = PROBE_MAX_RANGE) {
+  const targetPosition = target?.position;
+  const distance = Math.hypot(
+    finite(targetPosition?.x) - finite(origin?.x),
+    finite(targetPosition?.y) - finite(origin?.y),
+    finite(targetPosition?.z) - finite(origin?.z),
+  );
+  if (!targetPosition || !Number.isFinite(distance) || distance > maxDistance) return null;
+  const start = { x: finite(origin?.x), y: finite(origin?.y), z: finite(origin?.z) };
+  return {
+    id: target.id,
+    origin: start,
+    target: { x: finite(targetPosition.x), y: finite(targetPosition.y), z: finite(targetPosition.z) },
+    position: { ...start },
+    elapsed: 0,
+    duration: clamp(.3 + distance / 320, .3, .8),
+  };
+}
+
+/** Advance a probe in place and report whether it reached its target. */
+export function stepProbe(probe, dt = 0) {
+  if (!probe) return true;
+  probe.elapsed = clamp(finite(probe.elapsed) + Math.max(0, finite(dt)), 0, finite(probe.duration));
+  const progress = probe.duration ? probe.elapsed / probe.duration : 1;
+  for (const axis of ['x', 'y', 'z']) probe.position[axis] = probe.origin[axis] + (probe.target[axis] - probe.origin[axis]) * progress;
+  return progress >= 1;
 }
 
 export function formatBytes(value) {
