@@ -80,6 +80,7 @@ test('native open API requires same-origin JSON POST with a bounded body and val
   assert.equal((await request('{"path":"../note.md"}')).status, 403);
   assert.equal((await request('{"path":"missing.txt"}')).status, 404);
   assert.equal(calls.length, 0);
+  assert.equal((await fetch(`${base}/api/planet?id=__belt__`)).status, 200);
   const opened = await request('{"path":"note.md"}');
   assert.equal(opened.status, 200);
   assert.deepEqual(await opened.json(), { ok: true, action: 'opened' });
@@ -167,6 +168,8 @@ test('HTTP file preview provides text and seekable media while enforcing access 
   const health = await (await fetch(`${base}/api/health`)).json();
   assert.equal(health.name, 'Space Drift');
   assert.ok(health.capabilities.includes('file-preview'));
+  assert.equal((await fetch(`${base}/api/file?path=note.html`)).status, 404);
+  assert.equal((await fetch(`${base}/api/planet?id=__belt__`)).status, 200);
   const response = await fetch(`${base}/api/file?path=note.html`);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
