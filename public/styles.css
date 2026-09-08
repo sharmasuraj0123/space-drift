@@ -22,7 +22,7 @@
 .divider{color:#536181}
 .center-top #root-name{color:var(--muted)}
 .panel{border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(18px);border-radius:8px;box-shadow:0 10px 36px rgba(3,5,16,.14)}
-.world-info{position:fixed;right:36px;top:142px;width:260px;padding:19px}
+.world-info{padding:19px}
 .world-info .eyebrow{justify-content:space-between}
 .world-name{font-size:20px;letter-spacing:-.6px;margin:17px 0 20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .world-stats{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:17px}
@@ -82,7 +82,7 @@
 .progress-track{height:2px;background:#2a3655}
 .progress-track i{display:block;width:0;height:100%;background:var(--accent);transition:width .4s}
 .mission-footer{display:flex;justify-content:space-between;font-size:8px;color:var(--muted);margin-top:10px}
-.file-panel{position:fixed;right:36px;top:443px;width:260px;padding:19px}
+.file-panel{padding:19px}
 .file-panel .eyebrow{font-size:8px;justify-content:space-between}
 .file-panel h2{font-size:16px;font-weight:400;margin:16px 0 8px;overflow-wrap:anywhere}
 .file-path{font:9px monospace;color:var(--muted);line-height:1.6;overflow-wrap:anywhere}
@@ -90,15 +90,12 @@
 .scan-button{border:1px solid #566ba8;background:rgba(170,184,255,.1);color:var(--accent);border-radius:3px;padding:9px 12px;width:100%;display:flex;justify-content:space-between;align-items:center;font-size:10px}
 .scan-button:hover{background:rgba(170,184,255,.18);border-color:var(--accent)}
 .scan-button kbd{font-size:8px;height:18px;min-width:18px}
-.reticle{position:fixed;left:50%;top:50%;width:23px;height:23px;transform:translate(-50%,-50%);pointer-events:none;color:var(--muted);text-align:center;z-index:4}
-.reticle i{width:5px;height:5px;position:absolute;border-color:currentColor;border-style:solid;opacity:.65}
+.reticle{position:fixed;left:50%;top:50%;width:23px;height:23px;transform:translate(-50%,-50%);opacity:.45;pointer-events:none}
+.reticle i{width:5px;height:5px;position:absolute;border-color:var(--accent);border-style:solid}
 .reticle i:nth-child(1){left:0;top:0;border-width:1px 0 0 1px}
 .reticle i:nth-child(2){right:0;top:0;border-width:1px 1px 0 0}
 .reticle i:nth-child(3){left:0;bottom:0;border-width:0 0 1px 1px}
 .reticle i:nth-child(4){right:0;bottom:0;border-width:0 1px 1px 0}
-.reticle.locked{color:var(--cyan)}.reticle.locked i{opacity:1;box-shadow:0 0 8px #68e4ef66}
-#reticle-target{position:absolute;top:35px;left:50%;transform:translateX(-50%);width:max-content;max-width:min(280px,70vw);overflow-wrap:anywhere;font:10px monospace;line-height:1.5;background:rgba(8,11,24,.8);padding:4px 7px;border-radius:3px}
-.shot-preview #reticle-target{top:50%;left:auto;right:35px;transform:translateY(-50%)}
 .destination{position:fixed;right:36px;bottom:85px;display:grid;grid-template-columns:1fr auto;gap:8px 20px;max-width:260px}
 .destination strong{font-size:13px;font-weight:400;grid-column:1;overflow:hidden;text-overflow:ellipsis}
 .destination button{grid-column:2;grid-row:1 / 3;align-self:center;width:26px;height:26px;border:1px solid var(--line);border-radius:50%;background:none;color:var(--soft)}
@@ -108,6 +105,8 @@
 .sector-label{position:absolute;white-space:nowrap;color:var(--soft);font:10px monospace;letter-spacing:1.5px;transform:translate(-50%,-100%);text-shadow:0 2px 8px #050715}
 .sector-label:before{content:'◇';margin-right:7px;color:var(--sector-color)}
 .sector-label small{font:7px monospace;color:var(--subtle);margin-left:8px;letter-spacing:.8px}dialog{border:1px solid #3c4b77;border-radius:9px;background:rgba(13,18,38,.98);color:var(--ink);width:min(530px,calc(100% - 28px));padding:28px;box-shadow:0 30px 140px #000b;max-height:82dvh}dialog::backdrop{background:#040613b8;backdrop-filter:blur(5px)}
+.sector-label[data-kind=atom]{padding:5px 7px;background:#080b18c9;border:1px solid #aab8ff25;border-radius:4px;font-size:9px;letter-spacing:.2px;max-width:min(280px,65vw);overflow:hidden;text-overflow:ellipsis}
+.sector-label[data-kind=atom]:before{content:'·';font-size:15px;line-height:8px}
 .dialog-top{display:flex;justify-content:space-between;align-items:flex-start}
 .dialog-top h2{font-size:32px;font-weight:400;letter-spacing:-1.3px;margin:14px 0}
 .close-dialog{background:none;color:var(--soft);font-size:26px;padding:0 2px}dialog>p{font-size:12px;color:var(--soft);line-height:1.7}
@@ -115,10 +114,14 @@
 .search span{font-size:22px}
 .search input{background:none;border:0;width:100%;color:var(--ink);font-size:12px}
 .search input:focus{outline:none}
-.atlas-row{display:flex;width:100%;align-items:center;gap:13px;background:transparent;border-top:1px solid var(--line);padding:15px 0;text-align:left}
+.atlas-row{display:flex;flex-wrap:wrap;width:100%;align-items:center;gap:10px;background:transparent;border-top:1px solid var(--line);padding:15px 0;text-align:left}
 .atlas-row:hover{color:var(--accent);background:#aab8ff0a}
 .atlas-row>i{width:7px;height:7px;transform:rotate(45deg);margin:0 6px}
 .atlas-row div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.atlas-row>div:first-child{flex:1 1 150px;padding-left:calc(min(var(--depth,0),4) * 8px)}
+.atlas-row>button{flex-shrink:0}
+.atlas-row>details{flex-basis:100%;font:10px/1.6 monospace;color:var(--muted);overflow-wrap:anywhere}
+.atlas-row>details summary{cursor:pointer;color:var(--soft)}
 .atlas-row strong{font-size:12px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .atlas-row small{font:8px monospace;color:var(--muted)}
 .atlas-row>span{margin-left:auto;font-size:15px;color:var(--accent)}
@@ -137,14 +140,14 @@
 #error p{font-size:12px;line-height:1.8;color:var(--soft)}
 .touch-controls{display:none}
 @media(min-width:1600px){.intro{top:170px;left:55px}h1{font-size:86px}h1 em{font-size:98px}
-.world-info{right:45px;top:166px;width:280px}
-.file-panel{right:45px;top:465px;width:280px}}
+
+}
 @media(max-width:1050px){.version{display:none}
 .intro{left:26px}
 .intro h1{font-size:58px}
 .intro h1 em{font-size:68px}
-.world-info{right:24px;width:224px;padding:15px}
-.file-panel{right:24px;width:224px;top:428px;padding:15px}
+.world-info{padding:15px}
+.file-panel{padding:15px}
 .mission{left:24px;width:225px}
 .controls{left:24px}
 .activity{left:26px}
@@ -156,9 +159,9 @@
 .intro p{font-size:11px}
 .intro .primary{margin-top:18px;padding:12px 16px}
 .intro-note{display:none}
-.world-info{top:125px}
+
 .activity{display:none}
-.file-panel{top:auto;bottom:143px}
+
 .mission{top:125px}}
 @media(max-width:700px){header{height:70px;padding:0 18px;gap:14px}
 .brand{font-size:15px;gap:8px;letter-spacing:2px}
@@ -174,13 +177,13 @@
 .intro p{font-size:11px;max-width:280px}
 .intro .primary{min-width:200px;margin-top:20px}
 .intro-note{font-size:8px}
-.world-info{top:auto;right:20px;bottom:144px;width:152px;padding:12px;background:rgba(13,18,38,.78)}
-.world-info>.eyebrow,.world-info .legend,.world-info .physics-note{display:none}
+.world-info{padding:12px;background:rgba(13,18,38,.78)}
+
 .world-name{font-size:14px;margin:0 0 12px}
 .world-stats{gap:10px;padding-bottom:12px}
 .world-stats strong{font-size:12px}
 .world-stats span{font-size:6px}
-.world-stats div:last-child{display:none}
+
 .world-info .text-button{font-size:8px;margin-top:10px;gap:5px}
 #currents-state{font-size:6px}
 .activity{display:none}
@@ -205,7 +208,7 @@
 .mission .eyebrow{font-size:7px}
 .mission .eyebrow span{font-size:5px}
 .mission-footer{font-size:7px}
-.file-panel{top:auto;bottom:292px;right:20px;width:178px;padding:12px}
+.file-panel{padding:12px}
 .file-panel h2{font-size:13px;margin:12px 0 6px}
 .file-panel .eyebrow{font-size:6px;letter-spacing:1px}
 .file-path{font-size:7px}
@@ -220,8 +223,7 @@
 #toast{bottom:340px;font-size:10px;max-width:85vw;white-space:normal}
 .sector-label{font-size:8px}
 .sector-label small{display:none}dialog{padding:22px}
-.reticle i{opacity:.45}
-#reticle-target{top:50%;left:auto;right:35px;transform:translateY(-50%);max-width:40vw}}
+.reticle{opacity:.25}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 
@@ -235,12 +237,92 @@
 .source-note{border-top:1px solid var(--line);padding-top:12px;margin:14px 0 0;color:var(--soft);font-size:10px;line-height:1.6}
 .source-actions{display:flex;justify-content:space-between;gap:12px;margin-top:12px}
 .source-actions:has(button[hidden]){display:none}
-.file-panel{top:505px}
+
 @media(min-width:1051px) and (max-width:1390px){.version{display:none}}
-@media(max-width:1050px){header{gap:16px}.local-tag{display:none}.file-panel{top:493px}}
-@media(max-height:800px) and (min-width:701px){.world-info .physics-note{display:none}.world-info .legend{margin:12px 0}.source-note{margin-top:10px;padding-top:9px}.file-panel{top:auto;bottom:112px}.file-panel h2{margin:10px 0 6px}.file-properties{margin:10px 0}.world-name{margin:12px 0}.world-stats{padding-bottom:12px}}
-@media(max-width:700px){header{gap:10px}.connection{display:none}.folder-button{margin-left:auto;font-size:9px;padding:8px}.source-note{font-size:8px;line-height:1.45;margin-top:9px;padding-top:8px}.source-actions{gap:8px;margin-top:7px}.source-actions .text-button{margin-top:0;font-size:8px}.file-panel{top:auto;bottom:366px}.intro-note{max-width:300px;line-height:1.5}.snapshot-picker{font-size:9px}.intro .folder-error{max-width:285px;font-size:10px}.world-info{width:170px}.intro{max-width:calc(100vw - 45px)}}
+@media(max-width:1050px){header{gap:16px}.local-tag{display:none}}
+@media(max-height:800px) and (min-width:701px){.world-info .physics-note{display:none}.world-info .legend{margin:12px 0}.source-note{margin-top:10px;padding-top:9px}.file-panel h2{margin:10px 0 6px}.file-properties{margin:10px 0}.world-name{margin:12px 0}.world-stats{padding-bottom:12px}}
+@media(max-width:700px){header{gap:10px}.connection{display:none}.folder-button{margin-left:auto;font-size:9px;padding:8px}.source-note{font-size:8px;line-height:1.45;margin-top:9px;padding-top:8px}.source-actions{gap:8px;margin-top:7px}.source-actions .text-button{margin-top:0;font-size:8px}.intro-note{max-width:300px;line-height:1.5}.snapshot-picker{font-size:9px}.intro .folder-error{max-width:285px;font-size:10px}.intro{max-width:calc(100vw - 45px)}}
 @media(max-width:360px){.brand{font-size:12px;letter-spacing:1.5px}.brand svg{width:23px}.folder-button{padding:7px;font-size:8px}header{padding:0 14px;gap:8px}}
 
-/* Keep mobile HUD panels from covering the travelling shot and its impact. */
-@media(max-width:700px){body.shot-preview .mission,body.shot-preview .world-info,body.shot-preview .file-panel,body.shot-preview #toast{visibility:hidden}}
+/* Instruments share one scrollable column, so dense telemetry never covers controls. */
+.instrument-stack{position:fixed;right:28px;top:136px;bottom:210px;width:284px;display:flex;flex-direction:column;gap:12px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#41527b transparent;z-index:4;padding-right:3px}
+.instrument-stack>.panel{position:relative;flex-shrink:0;width:100%}
+.instrument-stack .world-info{padding:16px}
+.instrument-stack .world-name{font-size:19px;margin:12px 0 15px}
+.instrument-stack .legend{margin:12px 0;font-size:8px;gap:12px}
+.physics-panel{padding:16px}
+.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.law-strip{color:var(--cyan);font:12px Georgia,serif;letter-spacing:1px}
+.physics-panel h2{font-size:18px;font-weight:400;letter-spacing:-.4px;margin:15px 0 8px;overflow-wrap:anywhere}
+.instrument-meta{color:var(--muted);font:9px/1.6 monospace;overflow-wrap:anywhere;margin:6px 0}
+.element-formula{color:var(--lilac);font:9px/1.7 monospace;letter-spacing:.3px;margin:9px 0 14px}
+.instrument-values{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 12px;font-size:10px;line-height:1.5;margin:12px 0 0}
+.instrument-values dt{color:var(--muted)}
+.instrument-values dd{margin:0;color:var(--soft);text-align:right;font:10px/1.5 monospace;overflow-wrap:anywhere}
+.instrument-values dd[data-emitting=true]{color:var(--cyan)}
+.instrument-subhead{border-top:1px solid var(--line);padding-top:12px;margin-top:15px;color:var(--subtle);font:8px monospace;letter-spacing:1.3px}
+.layer-prompt{position:fixed;left:50%;top:calc(50% + 34px);transform:translateX(-50%);max-width:min(490px,70vw);color:var(--soft);font:10px/1.6 monospace;text-align:center;letter-spacing:.5px;padding:8px 12px;background:rgba(8,11,24,.6);border-radius:5px;pointer-events:none;z-index:3}
+.layer-actions{position:fixed;right:29px;bottom:86px;display:flex;gap:7px;z-index:6}
+.action-pill{display:flex;align-items:center;gap:7px;background:rgba(13,18,38,.9);border:1px solid var(--line);border-radius:5px;padding:8px 10px;color:var(--soft);font-size:10px;white-space:nowrap}
+.action-pill:hover{border-color:var(--accent);color:var(--ink)}
+.action-pill kbd{font-size:8px;height:17px;min-width:17px;padding:2px}
+#land-button{border-color:#586e9d;color:var(--accent)}
+#details-button{display:none}
+.destination{right:28px;bottom:132px;max-width:284px}
+.overlay-card{position:fixed;left:36px;top:405px;width:235px;padding:14px}
+.overlay-scale{height:4px;margin:13px 0 10px;border-radius:6px;background:linear-gradient(90deg,#68e4ef,#24354c,#c4a5ff)}
+.overlay-card p{font:9px/1.6 monospace;color:var(--muted);margin:0}
+.overlay-card[data-mode=energy] .overlay-scale,.overlay-card[data-mode=temperature] .overlay-scale{background:linear-gradient(90deg,#192337,#c4a5ff,#ffad9b)}
+.overlay-card[data-mode=light] .overlay-scale{background:linear-gradient(90deg,#080b18,#68e4ef,#eef2ff)}
+.reticle[data-locked=true]{opacity:1;filter:drop-shadow(0 0 6px #68e4ef80)}
+.reticle[data-locked=true] i{border-color:var(--cyan)}
+#reticle-label{position:absolute;left:50%;top:-22px;transform:translateX(-50%);font:8px monospace;white-space:nowrap;color:var(--cyan);max-width:min(320px,70vw);overflow:hidden;text-overflow:ellipsis}
+.reticle.fired{opacity:1;transform:translate(-50%,-50%) scale(1.35);filter:drop-shadow(0 0 9px #ffad9baa)}
+.reticle.fired i{border-color:var(--coral)}
+#layer-transition{position:fixed;inset:0;background:#080b18;opacity:0;pointer-events:none;z-index:18;will-change:opacity}
+.atlas-mode,.atlas-route-actions,.tour-controls{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}
+.atlas-mode button,.atlas-route-actions button,.tour-controls button,.atlas-row button{padding:8px 11px;background:#17213b;color:var(--soft);border:1px solid var(--line);border-radius:4px;font-size:10px}
+.atlas-mode button[aria-pressed=true],.atlas-row button[aria-pressed=true],.tour-controls #tour-resume{color:var(--accent);border-color:#6375af;background:#253154}
+.atlas-route-actions>span{flex-basis:100%;font:10px monospace;color:var(--lilac);padding:4px 0}
+.atlas-rankings{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.atlas-rankings>div{padding:12px;border:1px solid var(--line);border-radius:5px;min-width:0}
+.atlas-rankings h3{font:9px monospace;color:var(--lilac);letter-spacing:.8px;margin:0 0 8px}
+.atlas-rankings button{display:block;width:100%;background:none;text-align:left;color:var(--soft);font-size:10px;line-height:1.5;padding:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tour-list{display:flex;flex-direction:column;gap:8px;max-height:30vh;overflow:auto}
+#tour-list button{background:#141e36;border:1px solid var(--line);border-radius:4px;color:var(--soft);text-align:left;padding:12px;line-height:1.5}
+#tour-list h3{font:10px monospace;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:12px 0 4px}
+#tour-stops{font-size:11px;line-height:1.8;color:var(--muted);max-height:30vh;overflow:auto;padding-left:22px}
+#tour-stops li{padding:6px 8px}
+#tour-stops li[aria-current=step],#tour-stops li.current{background:#aab8ff12;color:var(--accent);border-radius:4px}
+#tour-stops li[data-missing=true]{text-decoration:line-through;color:var(--subtle)}
+#tour-status{padding:12px;background:#aab8ff0a;border-radius:5px;font:11px/1.7 monospace}
+#tour-stops textarea{width:100%;min-height:180px;background:#080b18;border:1px solid var(--line);color:var(--soft);font:11px/1.5 monospace;padding:10px;resize:vertical}
+.tour-note{position:fixed;left:36px;bottom:230px;width:260px;padding:16px}
+.tour-note p{font-size:12px;line-height:1.65;color:var(--soft);margin:10px 0 0}
+#constants{width:min(620px,calc(100% - 28px))}
+#constants-values{font-size:11px;max-height:55vh;overflow:auto}
+#constants-values dd{font-size:11px}
+@media(min-width:701px){.overlay-card:not([hidden])+.tour-note{top:520px;bottom:auto;max-height:max(80px,calc(100vh - 720px));overflow:auto}}
+@media(max-width:1050px) and (min-width:701px){.instrument-stack{right:20px;width:242px}.layer-actions{right:20px;gap:4px}.action-pill{padding:7px;gap:4px}.overlay-card{left:24px;width:225px}.tour-note{left:24px;width:225px}}
+@media(max-width:700px){
+  .instrument-stack{display:none;top:112px;right:14px;left:14px;bottom:222px;width:auto;background:#080b18e8;border:1px solid var(--line);border-radius:9px;padding:12px;z-index:12}
+  body.instruments-open .instrument-stack{display:flex}
+  .instrument-stack .world-stats strong{font-size:18px}.instrument-stack .world-stats span{font-size:8px}.instrument-stack .world-info .eyebrow{font-size:8px}.instrument-stack .world-name{font-size:19px}
+  .instrument-stack .file-panel h2{font-size:17px}.instrument-stack .file-path,.instrument-stack .file-properties{font-size:10px}
+  .instrument-values{font-size:11px}.instrument-values dd{font-size:11px}.physics-panel h2{font-size:19px}
+  .layer-actions{left:14px;right:14px;bottom:58px;gap:5px;justify-content:center}.action-pill{padding:8px 7px;gap:5px;font-size:9px}.action-pill kbd{font-size:8px}#details-button{display:flex}
+  .layer-prompt{top:calc(50% + 26px);font-size:9px;max-width:calc(100vw - 36px)}
+  .touch-controls{left:18px;bottom:109px;display:grid;grid-template-columns:repeat(6,34px);gap:5px}.touch-controls button{width:34px;height:34px;font-size:11px}
+  .controls{display:none}.flight-readout{bottom:128px;right:21px;min-width:65px}.flight-readout strong{font-size:27px}
+  .mission{top:114px;left:18px;width:210px;padding:12px}.mission h2{font-size:18px;margin:11px 0 7px}.mission-count{margin:10px 0}.mission-count strong{font-size:25px}.mission p{font-size:9px;margin-bottom:8px}
+  .overlay-card{left:18px;top:340px;width:200px;padding:10px}.overlay-card .eyebrow{font-size:7px}.overlay-card p{font-size:8px}
+  .tour-note{left:18px;right:18px;bottom:213px;width:auto;padding:12px;max-height:108px;overflow:auto}.tour-note p{font-size:10px}
+  .destination{left:auto;right:18px;bottom:216px;max-width:180px}
+  .tour-note:not([hidden])~.destination{bottom:337px}
+  .atlas-rankings{grid-template-columns:1fr}.atlas-rankings>div{padding:10px}.atlas-row>div:first-child{flex-basis:100%}.atlas-row>button{padding:9px 13px}
+  #toast{bottom:208px;z-index:22}.center-top{max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;font-size:7px}.center-top #root-name{overflow:hidden;text-overflow:ellipsis}
+}
+
+/* Keep the E bolt and impact visible while independent Q aiming remains available. */
+.layer-prompt[data-shot=true]{top:calc(50% - 12px);left:auto;right:calc(50% + 35px);transform:translateY(-50%);max-width:min(240px,38vw);color:var(--cyan);overflow-wrap:anywhere}
+@media(max-width:700px){body.shot-preview .mission,body.shot-preview .instrument-stack,body.shot-preview .tour-note,body.shot-preview #toast{visibility:hidden}}

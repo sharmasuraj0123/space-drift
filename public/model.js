@@ -1,3 +1,5 @@
+import * as C from './constants.js';
+
 /**
  * Metadata becomes a navigable metaphor here: bytes give files visual mass,
  * modification times create currents, and folders become islands. No file
@@ -142,132 +144,94 @@ export function buildWorld(snapshot = {}) {
   };
 }
 
-function currentForce(position, world) {
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (const sector of world.sectors || []) {
-    const dx = sector.position.x - position.x;
-    const dy = sector.position.y + 8 - position.y;
-    const dz = sector.position.z - position.z;
-    const distance = Math.hypot(dx, dy, dz);
-    if (distance < 0.01 || distance > 220) continue;
-    const falloff = (1 - distance / 220) ** 2;
-    // Gentle attraction makes mass tangible; fresh data adds a circular flow.
-    const pull = falloff * 1.5;
-    const swirl = falloff * finite(sector.activity) * 5;
-    x += (dx * pull - dz * swirl) / distance;
-    y += dy * pull / distance;
-    z += (dz * pull + dx * swirl) / distance;
-  }
-  const length = Math.hypot(x, y, z);
-  const scale = length > 5 ? 5 / length : 1;
-  return { x: x * scale, y: y * scale, z: z * scale };
-}
-
-function resolveFileInteractions(ship, files, dt, currents) {
-  let pullX = 0;
-  let pullY = 0;
-  let pullZ = 0;
-  for (const file of files) {
-    const dx = ship.position.x - file.position.x;
-    const dy = ship.position.y - file.position.y;
-    const dz = ship.position.z - file.position.z;
-    const radius = Math.max(0.1, finite(file.radius, 1));
-    const mass = clamp(finite(file.mass, 1), 1, 12);
-    // The renderer stretches crystals vertically by this same mass factor.
-    // Use an ellipsoid around that mesh so its visible tips are tangible too.
-    const verticalRadius = radius * (1.3 + mass * 0.08) + SHIP_RADIUS;
-    const horizontalRadius = radius + SHIP_RADIUS;
-    const distanceSquared = dx * dx + dy * dy + dz * dz;
-    const interactionRadius = Math.max(18, verticalRadius, horizontalRadius);
-    if (distanceSquared > interactionRadius * interactionRadius) continue;
-    if (currents && distanceSquared > 0.0001 && distanceSquared < 18 * 18) {
-      const distance = Math.sqrt(distanceSquared);
-      const strength = (0.07 + mass * 0.04) * (1 - distance / 18) ** 2 / distance;
-      pullX -= dx * strength;
-      pullY -= dy * strength;
-      pullZ -= dz * strength;
+function resolveCollisions(ship, world) {
+  const colliders = world.colliders ?? (world.files ?? []).map((file) => ({
+    center: file.position, radius: file.radius, kind: 'ellipsoid',
+    scaleY: 1.3 + clamp(finite(file.mass, 1), 1, 12) * .08,
+  }));
+  for (const collider of colliders) {
+    const center = collider.center ?? collider.position;
+    if (!center) continue;
+    const radius = Math.max(.1, finite(collider.radius, 1));
+    const horizontal = radius + C.SHIP_RADIUS;
+    const vertical = (collider.kind === 'sphere' ? radius : radius * finite(collider.scaleY, 1.5)) + C.SHIP_RADIUS;
+    const dx = ship.position.x - center.x, dy = ship.position.y - center.y, dz = ship.position.z - center.z;
+    if (Math.abs(dx) > horizontal || Math.abs(dz) > horizontal || Math.abs(dy) > vertical) continue;
+    const distance = Math.hypot(dx / horizontal, dy / vertical, dz / horizontal);
+    if (distance >= 1) continue;
+    const scale = distance > 1e-9 ? 1.00001 / distance : 0;
+    let x = dx * scale, y = scale ? dy * scale : vertical + .001, z = dz * scale;
+    const floor = Number.isFinite(world.floor) ? world.floor + C.SHIP_RADIUS : -Infinity;
+    if (center.y + y < floor && Math.abs((floor - center.y) / vertical) < 1) {
+      // A newly packed atom can enclose a grounded ship. Project sideways along
+      // the floor's ellipse section; projecting downward would pin it forever.
+      y = floor - center.y;
+      const planar = Math.hypot(dx, dz), required = horizontal * Math.sqrt(1 - (y / vertical) ** 2) + .001;
+      x = planar > 1e-9 ? dx / planar * required : 0;
+      z = planar > 1e-9 ? dz / planar * required : required;
     }
-    const scaledDistance = Math.hypot(dx / horizontalRadius, dy / verticalRadius, dz / horizontalRadius);
-    if (scaledDistance >= 1) continue;
-    // An exact center hit needs a defined normal, otherwise 0/0 poisons motion.
-    const push = scaledDistance > 0.00001 ? 1.002 / scaledDistance : 0;
-    const surfaceX = dx * push;
-    const surfaceY = push ? dy * push : verticalRadius + 0.01;
-    const surfaceZ = dz * push;
-    ship.position.x = file.position.x + surfaceX;
-    ship.position.y = file.position.y + surfaceY;
-    ship.position.z = file.position.z + surfaceZ;
-    // The gradient gives the contact normal on the stretched surface.
-    const gradientX = surfaceX / (horizontalRadius * horizontalRadius);
-    const gradientY = surfaceY / (verticalRadius * verticalRadius);
-    const gradientZ = surfaceZ / (horizontalRadius * horizontalRadius);
-    const gradientLength = Math.hypot(gradientX, gradientY, gradientZ);
-    const nx = gradientX / gradientLength;
-    const ny = gradientY / gradientLength;
-    const nz = gradientZ / gradientLength;
-    const inwardSpeed = ship.velocity.x * nx + ship.velocity.y * ny + ship.velocity.z * nz;
-    if (inwardSpeed < 0) {
-      ship.velocity.x -= inwardSpeed * nx * 1.25;
-      ship.velocity.y -= inwardSpeed * ny * 1.25;
-      ship.velocity.z -= inwardSpeed * nz * 1.25;
+    ship.position.x = center.x + x; ship.position.y = center.y + y; ship.position.z = center.z + z;
+    const nx = x / (horizontal * horizontal), ny = y / (vertical * vertical), nz = z / (horizontal * horizontal);
+    const normalLength = Math.hypot(nx, ny, nz);
+    const inward = (ship.velocity.x * nx + ship.velocity.y * ny + ship.velocity.z * nz) / normalLength;
+    if (inward < 0) {
+      ship.velocity.x -= inward * nx / normalLength * 1.1;
+      ship.velocity.y -= inward * ny / normalLength * 1.1;
+      ship.velocity.z -= inward * nz / normalLength * 1.1;
     }
   }
-  // Dense folders must not turn into singularities: cap the combined nearby
-  // pull, while preserving the direction and relative effect of file masses.
-  const pullLength = Math.hypot(pullX, pullY, pullZ);
-  const scale = pullLength > 1.2 ? 1.2 / pullLength : 1;
-  ship.velocity.x += pullX * scale * dt;
-  ship.velocity.y += pullY * scale * dt;
-  ship.velocity.z += pullZ * scale * dt;
+  if (Number.isFinite(world.floor)) {
+    const floor = world.floor + C.SHIP_RADIUS;
+    if (ship.position.y < floor) { ship.position.y = floor; ship.velocity.y = Math.max(0, ship.velocity.y); }
+  }
 }
 
-/**
- * W/thrust moves toward -Z at yaw 0. Positive turn turns left; lift moves up.
- * Exponential steering/damping and bounded substeps keep motion stable on both
- * fast screens and delayed frames. Currents are a simulated interpretation of
- * metadata, rather than a measurement of disk I/O.
+/** Fixed 120 Hz simulation: explicit field, local drag, bounded control and contact.
+ * Hold cancels the evaluated field; ordinary braking keeps gravity active.
+ * Simulation time drives deterministic buffet independently of display cadence.
  */
-export function stepShip(ship, input = {}, world = {}, dt = 0, { currents = true } = {}) {
-  ship.position ||= { x: 0, y: 12, z: 100 };
-  ship.velocity ||= { x: 0, y: 0, z: 0 };
-  for (const axis of ['x', 'y', 'z']) {
-    ship.position[axis] = finite(ship.position[axis]);
-    ship.velocity[axis] = finite(ship.velocity[axis]);
-  }
-  ship.yaw = finite(ship.yaw);
-  const elapsed = clamp(finite(dt), 0, 0.1);
+export function stepShip(ship, input = {}, world = {}, dt = 0, { field = true } = {}) {
+  ship.position ||= { x: 0, y: 12, z: 100 }; ship.velocity ||= { x: 0, y: 0, z: 0 };
+  for (const axis of ['x', 'y', 'z']) { ship.position[axis] = finite(ship.position[axis]); ship.velocity[axis] = finite(ship.velocity[axis]); }
+  ship.yaw = finite(ship.yaw); ship.simulationTime = finite(ship.simulationTime);
+  const elapsed = clamp(finite(dt), 0, .1);
   if (!elapsed) return ship;
-  const steps = Math.ceil(elapsed / (1 / 120));
-  const tick = elapsed / steps;
-  const thrust = clamp(finite(input.thrust), -1, 1);
-  const lift = clamp(finite(input.lift), -1, 1);
-  const turn = clamp(finite(input.turn), -1, 1);
-  const speed = input.boost ? 120 : 45;
-  const damping = input.brake ? 9 : 1.8;
-  const blend = Math.exp(-damping * tick);
-  for (let i = 0; i < steps; i++) {
-    ship.yaw += turn * 1.65 * tick;
-    ship.yaw = Math.atan2(Math.sin(ship.yaw), Math.cos(ship.yaw));
-    const target = input.brake ? { x: 0, y: 0, z: 0 } : {
-      x: -Math.sin(ship.yaw) * speed * thrust,
-      y: lift * speed * 0.7,
-      z: -Math.cos(ship.yaw) * speed * thrust,
-    };
-    const force = currents && !input.brake ? currentForce(ship.position, world) : { x: 0, y: 0, z: 0 };
-    for (const axis of ['x', 'y', 'z']) {
-      ship.velocity[axis] = ship.velocity[axis] * blend + target[axis] * (1 - blend) + force[axis] * tick;
+  ship._accumulator = Math.max(0, finite(ship._accumulator)) + elapsed;
+  const tick = C.PHYSICS_STEP, thrust = clamp(finite(input.thrust), -1, 1), lift = clamp(finite(input.lift), -1, 1), turn = clamp(finite(input.turn), -1, 1);
+  while (ship._accumulator + 1e-12 >= tick) {
+    ship._accumulator = Math.max(0, ship._accumulator - tick);
+    ship.yaw += turn * 1.65 * tick; ship.yaw = Math.atan2(Math.sin(ship.yaw), Math.cos(ship.yaw));
+    const holding = !!input.hold, braking = holding || !!input.brake;
+    const localDamping = field ? world.field?.damping?.(ship.position) : C.DAMPING_FREE;
+    const damping = braking ? C.DAMPING_BRAKE : Math.max(.01, finite(localDamping, C.DAMPING_FREE));
+    const blend = Math.exp(-damping * tick), response = (1 - blend) / damping;
+    const drive = input.boost ? C.THRUST_BOOST : C.THRUST_CRUISE;
+    const control = braking ? { x: 0, y: 0, z: 0 } : { x: -Math.sin(ship.yaw) * drive * thrust, y: .7 * drive * lift, z: -Math.cos(ship.yaw) * drive * thrust };
+    const gravity = field ? world.field?.acceleration?.(ship.position) : null;
+    const buffet = field ? world.field?.buffet?.(ship.position, ship.simulationTime) : null;
+    const force = { x: finite(gravity?.x) + finite(buffet?.x), y: finite(gravity?.y) + finite(buffet?.y), z: finite(gravity?.z) + finite(buffet?.z) };
+    if (holding) {
+      const magnitude = Math.hypot(force.x, force.y, force.z), factor = magnitude > C.THRUST_BOOST ? C.THRUST_BOOST / magnitude : 1;
+      for (const axis of ['x', 'y', 'z']) control[axis] = -force[axis] * factor;
     }
-    const magnitude = Math.hypot(ship.velocity.x, ship.velocity.y, ship.velocity.z);
-    if (magnitude > 150) {
-      for (const axis of ['x', 'y', 'z']) ship.velocity[axis] *= 150 / magnitude;
-    }
+    for (const axis of ['x', 'y', 'z']) ship.velocity[axis] = ship.velocity[axis] * blend + (control[axis] + force[axis]) * response;
+    const speed = Math.hypot(ship.velocity.x, ship.velocity.y, ship.velocity.z);
+    if (speed > C.MAX_SPEED) for (const axis of ['x', 'y', 'z']) ship.velocity[axis] *= C.MAX_SPEED / speed;
     for (const axis of ['x', 'y', 'z']) ship.position[axis] += ship.velocity[axis] * tick;
-    // At 120 Hz, even the maximum speed cannot tunnel through the smallest file.
-    resolveFileInteractions(ship, world.files || [], tick, currents && !input.brake);
+    resolveCollisions(ship, world); ship.simulationTime += tick;
   }
   return ship;
+}
+
+export function findNearest(items, position, maxDistance = Infinity) {
+  let nearest = null, best = maxDistance;
+  for (const item of items ?? []) {
+    const p = item.position ?? item.center;
+    if (!p) continue;
+    const distance = Math.hypot(p.x - position.x, p.y - position.y, p.z - position.z);
+    if (distance <= best) { nearest = item; best = distance; }
+  }
+  return nearest;
 }
 
 export function findNearestFile(world, position, maxDistance = Infinity) {

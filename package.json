@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Fly through a living map of your local folder.",
+  "description": "Fly between local repositories as planets, then land to explore folders as molecules and files as atoms.",
   "scripts": {
     "start": "node server.mjs",
     "dev": "node server.mjs",

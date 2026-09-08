@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDirectorySource, createSnapshotSource } from '../public/folder-source.js';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { discoverPlanets } from '../lib/discover.mjs';
 
 function file(name, size = 10, lastModified = 1000, webkitRelativePath = '') {
   return { name, size, lastModified, webkitRelativePath,
@@ -245,4 +249,75 @@ test('cancellation and disposal cannot publish a late scan or return a late file
   const alreadyAborted = new AbortController();
   alreadyAborted.abort();
   await assert.rejects(createSnapshotSource([file('a.txt')]).readWorld({ signal: alreadyAborted.signal }), { name: 'AbortError' });
+});
+
+test('browser repository discovery matches the server and never opens Git marker bytes', async (t) => {
+  let markerReads = 0;
+  const marker = { kind: 'file', name: '.git', getFile() { markerReads += 1; throw new Error('Git marker bytes must stay unread'); } };
+  const nested = directory('nested', { '.git': marker, 'inner.js': fileHandle(file('inner.js', 15)) });
+  const repository = directory('repo', { '.git': marker, nested, 'README.md': fileHandle(file('README.md', 20)) });
+  const root = directory('workspace', { '.git': marker, group: directory('group', { repo: repository, 'loose.md': fileHandle(file('loose.md', 10)) }), '.hidden': directory('.hidden', { '.git': marker }) });
+  const local = await mkdtemp(path.join(os.tmpdir(), 'space-browser-parity-')); t.after(() => rm(local, { recursive: true, force: true }));
+  await mkdir(path.join(local, 'group/repo/nested'), { recursive: true }); await mkdir(path.join(local, '.hidden'));
+  for (const relative of ['.git', 'group/repo/.git', 'group/repo/nested/.git', '.hidden/.git']) await writeFile(path.join(local, relative), 'marker fixture');
+  const source = createDirectorySource(root); t.after(() => source.dispose());
+  const space = await source.readSpace();
+  const canonical = (bodies) => bodies.map(({ id, path, kind }) => ({ id, path, kind }));
+  assert.deepEqual(canonical(space.bodies), canonical((await discoverPlanets(local)).bodies).sort((a, b) => a.id.localeCompare(b.id)));
+  assert.ok(space.bodies.every((b) => b.survey.pending)); assert.equal(markerReads, 0);
+  const body = await source.readPlanet('group/repo');
+  assert.equal(body.layer, 'planet'); assert.equal(body.restMass, 35); assert.equal(body.git.enabled, false);
+  assert.deepEqual(body.atoms.map((a) => [a.id, a.path]), [['group/repo/nested/inner.js', 'nested/inner.js'], ['group/repo/README.md', 'README.md']].sort(([a], [b]) => a.localeCompare(b)));
+  assert.ok(body.molecules.some((m) => m.id === 'nested' && m.repo && m.worktree));
+  assert.equal((await source.getFile('group/repo/README.md')).size, 20);
+  assert.equal(markerReads, 0); await assert.rejects(source.getFile('group/repo/.git'), { name: 'NotFoundError' });
+  const belt = await source.readPlanet('__belt__'); assert.deepEqual(belt.atoms.map((a) => a.id), ['group/loose.md']);
+  assert.deepEqual(source.search('README').map((a) => a.id), ['group/repo/README.md']);
+});
+
+test('snapshots discover raw Git paths before exclusions while preserving File identity and fallback limitations', async (t) => {
+  const marker = file('config', 1, 1000, 'workspace/repo/.git/config');
+  const readme = file('README.md', 100, 1000, 'workspace/repo/README.md');
+  const loose = file('loose.txt', 20, 1000, 'workspace/loose.txt');
+  const source = createSnapshotSource([marker, readme, loose]); t.after(() => source.dispose());
+  assert.equal(source.live, false);
+  const space = await source.readSpace(); assert.deepEqual(space.bodies.map((b) => b.id), ['__belt__', 'repo']);
+  assert.match(space.discovery.limitation, /snapshot/i);
+  const body = await source.readPlanet('repo'); assert.deepEqual(body.atoms.map((a) => a.id), ['repo/README.md']);
+  assert.equal(await source.getFile('repo/README.md'), readme);
+  await assert.rejects(source.getFile('repo/.git/config'), { name: 'NotFoundError' });
+  const fallback = createSnapshotSource([readme]); t.after(() => fallback.dispose());
+  assert.deepEqual((await fallback.readSpace()).bodies.map((b) => b.id), ['__belt__']);
+  assert.equal((await fallback.readPlanet('__belt__')).restMass, 100);
+});
+
+test('live body edits brighten within one refresh while an incomplete refresh cannot manufacture deletion events', async (t) => {
+  let now = 1000;
+  const root = directory('workspace', { 'a.txt': fileHandle(file('a.txt', 100, now)) });
+  const source = createDirectorySource(root, { maxFiles: 1, now: () => now, tickMs: 1e8 }); t.after(() => source.dispose());
+  await source.readWorld();
+  await source.readPlanet('__belt__');
+  now += 6000; root.children.set('a.txt', fileHandle(file('a.txt', 100, now)));
+  const changed = await source.readPlanet('__belt__');
+  assert.equal(changed.atoms[0].rho, .05); assert.equal(changed.atoms[0].excitation, 5);
+  assert.equal(changed.events[0].planetId, '__belt__');
+  now += 6000; root.children.set('0.txt', fileHandle(file('0.txt', 200, now)));
+  const partial = await source.readPlanet('__belt__');
+  assert.equal(partial.survey.partial, true); assert.ok(!partial.events.some((e) => e.type === 'deleted'));
+  await assert.rejects(source.getFile('a.txt'), { name: 'NotFoundError' });
+});
+
+test('explicit tour metadata is bounded and hidden definitions never become normal file targets', async (t) => {
+  let contentReads = 0;
+  const tourText = JSON.stringify({ id: 'onboarding', title: 'Fixture', stops: [{ path: 'README.md' }] });
+  const tourFile = { ...file('guide.json', tourText.length), text: async () => { contentReads += 1; return tourText; } };
+  const manifest = JSON.stringify({ main: 'src/start.js', scripts: { start: 'node src/start.js' } });
+  const packageFile = { ...file('package.json', manifest.length), text: async () => { contentReads += 1; return manifest; } };
+  const root = directory('workspace', { '.git': directory('.git'), '.space': directory('.space', { tours: directory('tours', { 'guide.json': fileHandle(tourFile) }) }), 'README.md': fileHandle(file('README.md')), 'package.json': fileHandle(packageFile), src: directory('src', { 'start.js': fileHandle(file('start.js')) }) });
+  const source = createDirectorySource(root); t.after(() => source.dispose());
+  const body = await source.readPlanet('.'); assert.equal(contentReads, 0); assert.ok(!body.atoms.some((a) => a.id.startsWith('.')));
+  const tours = await source.tours(); assert.equal(contentReads, 2); assert.equal(tours.errors.length, 0);
+  assert.equal(tours.tours[0].title, 'Fixture'); assert.equal(tours.tours[0].stops[0].id, 'README.md'); assert.equal(tours.tours[0].stops[0].missing, false);
+  assert.deepEqual((await source.readPlanet('.')).entryPoints, ['src/start.js']);
+  await assert.rejects(source.getFile('.space/tours/guide.json'), { name: 'NotFoundError' });
 });
