@@ -77,7 +77,7 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
           response.setHeader('Allow', 'POST');
           return send(405, { error: 'Use POST to open a file on the desktop.' });
         }
-        if (request.headers.origin !== `http://${request.headers.host}`) return send(403, { error: 'Open files from the local Space page.' });
+        if (request.headers.origin !== `http://${request.headers.host}`) return send(403, { error: 'Open files from the local Space Drift page.' });
         if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
           return send(415, { error: 'This request must use application/json.' });
         }
@@ -94,7 +94,8 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
         response.setHeader('Allow', 'GET');
         return send(405, { error: 'Only GET requests are supported on this route.' });
       }
-      if (pathname === '/api/health') return send(200, { ok: true, name: 'Space', protocolVersion: 2, capabilities: ['file-preview', 'native-file-open'] });
+      if (pathname === '/runtime.json') return send(200, { localServer: true });
+      if (pathname === '/api/health') return send(200, { ok: true, name: 'Space Drift', protocolVersion: 2, capabilities: ['file-preview', 'native-file-open'] });
       if (pathname === '/api/world') return send(200, await readWorld());
       if (pathname === '/api/file' || pathname === '/api/file-content') {
         const filePath = new URL(request.url, `http://${request.headers.host}`).searchParams.get('path');
@@ -156,7 +157,7 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
       if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return send(404, { error: 'File not found.' });
       if (error.code === 'ELOOP') return send(403, { error: 'Linked files and folders cannot be opened.' });
       if (error.code === 'EACCES' || error.code === 'EPERM') return send(403, { error: 'Permission denied.' });
-      console.error('Space request failed:', error.message);
+      console.error('Space Drift request failed:', error.message);
       send(500, { error: 'Could not scan this folder. Check that it is still available.' });
     }
   });
@@ -183,7 +184,7 @@ export async function main(args = process.argv.slice(2)) {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', resolve);
   });
-  console.log(`Space is ready: http://127.0.0.1:${port}`);
+  console.log(`Space Drift is ready: http://127.0.0.1:${port}`);
   console.log(`Mapping metadata in ${root}`);
   console.log('Read-only map. Files open locally on demand. Press Ctrl+C to stop.');
   return server;
@@ -191,7 +192,7 @@ export async function main(args = process.argv.slice(2)) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   main().catch((error) => {
-    console.error(`Space: ${error.message}`);
+    console.error(`Space Drift: ${error.message}`);
     process.exitCode = 1;
   });
 }

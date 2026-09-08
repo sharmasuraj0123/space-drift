@@ -1,5 +1,5 @@
 {
-  "name": "space-explorer",
+  "name": "space-drift",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,9 @@
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check server.mjs && node --check public/main.js && node --check public/model.js && node --check public/viewer.js && node --check lib/files.mjs"
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview.mjs"
   },
   "dependencies": {
     "three": "0.185.1"

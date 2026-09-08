@@ -220,5 +220,6 @@
 #toast{bottom:340px;font-size:10px;max-width:85vw;white-space:normal}
 .sector-label{font-size:8px}
 .sector-label small{display:none}dialog{padding:22px}
-.reticle{opacity:.25}}
+.reticle i{opacity:.45}
+#reticle-target{top:50%;left:auto;right:35px;transform:translateY(-50%);max-width:40vw}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}

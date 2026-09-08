@@ -1,13 +1,16 @@
 import { formatBytes } from './model.js';
+import { awaitWithSignal, createLocalPreviewSession } from './preview.js';
+
+const SERVER_SOURCE = Object.freeze({ kind: 'server' });
 
 /** Files are fetched only when the pilot opens them; text never becomes HTML. */
-export function createFileViewer({ onClose = () => {} } = {}) {
+export function createFileViewer({ onClose = () => {}, getSource = () => SERVER_SOURCE } = {}) {
   const dialog = document.createElement('dialog');
   dialog.id = 'file-viewer';
   dialog.setAttribute('aria-labelledby', 'viewer-title');
   dialog.innerHTML = `
     <div class="viewer-header">
-      <div class="viewer-identity"><div class="eyebrow">SPACE / FILE VIEWER</div><h2 id="viewer-title"></h2><p id="viewer-path"></p></div>
+      <div class="viewer-identity"><div class="eyebrow">SPACE DRIFT / FILE VIEWER</div><h2 id="viewer-title"></h2><p id="viewer-path"></p></div>
       <button class="viewer-close" aria-label="Close file and return to flight" title="Return to flight (Escape)">×</button>
     </div>
     <div class="viewer-toolbar"><span id="viewer-meta"></span><div class="viewer-actions"><button id="viewer-copy" type="button">Copy path ↗</button><button id="viewer-desktop" type="button" hidden>Open in desktop app ↗</button></div></div>
@@ -17,20 +20,30 @@ export function createFileViewer({ onClose = () => {} } = {}) {
   const find = (id) => dialog.querySelector(`#${id}`);
   const content = find('viewer-content');
   let request, filePath = '', requestNumber = 0;
+  let activeSource = null;
+  const localPreview = createLocalPreviewSession();
 
   function clearMedia() {
     content.querySelectorAll('audio,video').forEach((element) => { element.pause(); element.removeAttribute('src'); element.load(); });
     content.replaceChildren();
+    localPreview.clear();
   }
-  dialog.querySelector('.viewer-close').addEventListener('click', () => dialog.close());
+  function close() {
+    requestNumber++; request?.abort(); clearMedia(); activeSource = null;
+    if (dialog.open) dialog.close();
+  }
+  dialog.querySelector('.viewer-close').addEventListener('click', close);
   dialog.addEventListener('close', () => {
-    requestNumber++; request?.abort(); clearMedia(); onClose();
+    // A new file may already have opened before this queued close event runs.
+    if (dialog.open) return;
+    requestNumber++; request?.abort(); clearMedia(); activeSource = null; onClose();
   });
   find('viewer-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(filePath); find('viewer-status').textContent = 'Relative path copied.'; }
     catch { find('viewer-status').textContent = 'Select the path above to copy it.'; }
   });
   find('viewer-desktop').addEventListener('click', async () => {
+    if (activeSource?.kind !== 'server' || getSource() !== activeSource || !dialog.open) return;
     const number = requestNumber;
     find('viewer-desktop').disabled = true;
     find('viewer-status').textContent = 'Opening on your computer…';
@@ -41,7 +54,7 @@ export function createFileViewer({ onClose = () => {} } = {}) {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'The desktop app could not be opened.');
-      if (number === requestNumber && dialog.open) find('viewer-status').textContent = result.action === 'revealed' ? 'Shown in Finder. Return to Space whenever you’re ready.' : 'Opened in your desktop app. Return to Space whenever you’re ready.';
+      if (number === requestNumber && dialog.open) find('viewer-status').textContent = result.action === 'revealed' ? 'Shown in Finder. Return to Space Drift whenever you’re ready.' : 'Opened in your desktop app. Return to Space Drift whenever you’re ready.';
     } catch (error) {
       if (number === requestNumber && dialog.open) find('viewer-status').textContent = error.name === 'TimeoutError' ? 'Opening took too long. You can try again.' : error.message;
     } finally { if (number === requestNumber) find('viewer-desktop').disabled = false; }
@@ -50,6 +63,8 @@ export function createFileViewer({ onClose = () => {} } = {}) {
   async function open(file) {
     request?.abort(); const number = ++requestNumber;
     request = new AbortController();
+    const source = getSource();
+    activeSource = source;
     filePath = file.path;
     find('viewer-title').textContent = file.name;
     find('viewer-path').textContent = file.path;
@@ -62,19 +77,33 @@ export function createFileViewer({ onClose = () => {} } = {}) {
     const currentRequest = request;
     const timeout = setTimeout(() => currentRequest.abort(), 15000);
     try {
-      const response = await fetch(`/api/file?path=${encodeURIComponent(file.path)}`, { signal: request.signal });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'This file could not be opened.');
+      let result;
+      if (!source) throw new Error('Choose a local folder before opening a file.');
+      if (source.kind === 'server') {
+        const response = await fetch(`/api/file?path=${encodeURIComponent(file.path)}`, { signal: currentRequest.signal });
+        result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'This file could not be opened.');
+      } else if (source.kind === 'directory' || source.kind === 'snapshot') {
+        if (typeof source.getFile !== 'function') throw new Error('This folder cannot open files. Choose it again.');
+        const selected = await awaitWithSignal(source.getFile(file.path, { signal: currentRequest.signal }), currentRequest.signal);
+        if (number !== requestNumber || !dialog.open) return false;
+        if (getSource() !== source) { close(); return false; }
+        result = await localPreview.open(selected, file.path, { signal: currentRequest.signal });
+      } else throw new Error('Choose a local folder before opening a file.');
       if (number !== requestNumber || !dialog.open) return false;
+      if (getSource() !== source) { close(); return false; }
       content.replaceChildren();
       content.dataset.kind = result.kind;
-      find('viewer-desktop').hidden = !result.desktopAction;
+      find('viewer-desktop').hidden = source.kind !== 'server' || !result.desktopAction;
       find('viewer-desktop').textContent = result.desktopAction === 'reveal' ? 'Show in Finder ↗' : 'Open in desktop app ↗';
-      find('viewer-meta').textContent = `${result.kind.toUpperCase()}  /  ${formatBytes(result.size)}  /  ${new Date(result.modifiedAt).toLocaleDateString()}`;
+      const dateLabel = result.modifiedAt ? new Date(result.modifiedAt).toLocaleDateString() : 'Unknown modified date';
+      find('viewer-meta').textContent = `${result.kind.toUpperCase()}  /  ${formatBytes(result.size)}  /  ${dateLabel}`;
       const mediaUrl = result.contentUrl;
       if (mediaUrl) {
-        const url = new URL(mediaUrl, location.href);
-        if (url.origin !== location.origin || url.pathname !== '/api/file-content') throw new Error('This file has an invalid local preview address.');
+        if (source.kind === 'server') {
+          const url = new URL(mediaUrl, location.href);
+          if (url.origin !== location.origin || url.pathname !== '/api/file-content') throw new Error('This file has an invalid local preview address.');
+        } else if (!localPreview.owns(mediaUrl)) throw new Error('This preview is no longer available. Open the file again.');
       }
       switch (result.kind) {
         case 'text': {
@@ -102,7 +131,9 @@ export function createFileViewer({ onClose = () => {} } = {}) {
         default: {
           const message = document.createElement('div'); message.className = 'viewer-message';
           const heading = document.createElement('h3'); heading.textContent = 'No preview for this file type yet.';
-          const detail = document.createElement('p'); detail.textContent = result.desktopAction === 'open' ? 'Use “Open in desktop app” above to view this file in its usual application.' : 'Use “Show in Finder” above to locate this file on your computer.';
+          const detail = document.createElement('p'); detail.textContent = source.kind !== 'server'
+            ? 'Open this file from your computer’s file manager to view it in its usual application.'
+            : result.desktopAction === 'open' ? 'Use “Open in desktop app” above to view this file in its usual application.' : 'Use “Show in Finder” above to locate this file on your computer.';
           message.append(heading, detail); content.append(message);
         }
       }
@@ -110,12 +141,13 @@ export function createFileViewer({ onClose = () => {} } = {}) {
       return true;
     } catch (error) {
       if (number !== requestNumber || !dialog.open) return false;
-      content.replaceChildren();
+      if (getSource() !== source) { close(); return false; }
+      clearMedia();
       const message = document.createElement('p'); message.className = 'viewer-message';
       message.textContent = error.name === 'AbortError' ? 'The file took too long to open. Close this viewer and press E to retry.' : error.message;
       content.append(message); find('viewer-status').textContent = 'Could not open file. Return to flight and try again.';
       return false;
     } finally { clearTimeout(timeout); if (number === requestNumber) content.setAttribute('aria-busy', 'false'); }
   }
-  return { open, get isOpen() { return dialog.open; }, get path() { return dialog.open ? filePath : null; } };
+  return { open, close, get isOpen() { return dialog.open; }, get path() { return dialog.open ? filePath : null; } };
 }

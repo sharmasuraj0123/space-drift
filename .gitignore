@@ -1,2 +1,5 @@
 node_modules/
 artifacts/
+dist/
+.vercel/
+.xo/

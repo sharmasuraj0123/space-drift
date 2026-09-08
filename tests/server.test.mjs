@@ -8,7 +8,7 @@ import { scanDirectory, diffSnapshots, createWorldReader } from '../lib/scan.mjs
 import { createServer } from '../server.mjs';
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'data-drift-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'space-drift-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }
@@ -105,7 +105,7 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   const vendorDirectory = path.join(root, 'vendor');
   await mkdir(publicDirectory);
   await mkdir(vendorDirectory);
-  await writeFile(path.join(publicDirectory, 'index.html'), '<h1>Space</h1>');
+  await writeFile(path.join(publicDirectory, 'index.html'), '<h1>Space Drift</h1>');
   await writeFile(path.join(root, 'private.txt'), 'must never be served');
   await symlink(path.join(root, 'private.txt'), path.join(publicDirectory, 'escape.txt'));
   await symlink(path.join(root, 'private.txt'), path.join(vendorDirectory, 'three.module.js'));
@@ -115,7 +115,8 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
   assert.equal((await fetch(base + '/api/health')).status, 200);
-  assert.match(await (await fetch(base + '/')).text(), /Space/);
+  assert.deepEqual(await (await fetch(base + '/runtime.json')).json(), { localServer: true });
+  assert.match(await (await fetch(base + '/')).text(), /Space Drift/);
   const world = await (await fetch(base + '/api/world')).json();
   assert.ok(world.files.some((file) => file.path === 'private.txt'));
   assert.ok(!JSON.stringify(world).includes('must never be served'));

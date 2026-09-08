@@ -5,6 +5,10 @@
  */
 
 export const PALETTE = [0x68e4ef, 0xaab8ff, 0xc4a5ff, 0xffad9b, 0x77b9ff, 0xf29bd3];
+export const SCAN_RANGE = 18;
+export const SHOT_RANGE = 90;
+const SHOT_HALF_ANGLE = 12 * Math.PI / 180;
+const SHOT_VERTICAL_TOLERANCE = 30;
 const TAU = Math.PI * 2;
 const SHIP_RADIUS = 1.4;
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));

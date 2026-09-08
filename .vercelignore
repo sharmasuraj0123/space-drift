@@ -1,0 +1,19 @@
+# Deploy source required for the static build; local data and tooling stay out.
+.git
+**/.git/**
+.xo
+**/.xo/**
+.vercel
+**/.vercel/**
+node_modules
+artifacts
+dist
+.env
+.env.*
+server.mjs
+lib
+tests
+assets
+docs
+memory
+README.md

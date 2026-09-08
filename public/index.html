@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#080b18">
-  <title>Space · Fly through your files</title>
+  <title>Space Drift · Fly through your files</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23aab8ff' d='M20 3 35 34 20 27 5 34Z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/viewer.css">
@@ -12,8 +12,9 @@
   <div id="scene" tabindex="0" aria-label="Interactive three dimensional map of your local folder"></div>
   <div class="vignette"></div>
   <header>
-    <a class="brand" href="/" aria-label="Space home"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><ellipse cx="18" cy="18" rx="17" ry="8" transform="rotate(-38 18 18)" stroke="currentColor" stroke-width="1" opacity=".65"/><path d="M19 6 26 26 18 22 10 27Z" fill="currentColor"/><path d="M19 6 18 22" stroke="#080b18" stroke-width="1"/></svg><span>SPACE</span><span class="version">LOCAL EXPLORER / 001</span></a>
-    <div class="connection"><span class="status-dot"></span><span id="connection">Connecting to local folder</span><span class="local-tag">LOCAL ONLY</span></div>
+    <a class="brand" href="/" aria-label="Space Drift home"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><ellipse cx="18" cy="18" rx="17" ry="8" transform="rotate(-38 18 18)" stroke="currentColor" stroke-width="1" opacity=".65"/><path d="M19 6 26 26 18 22 10 27Z" fill="currentColor"/><path d="M19 6 18 22" stroke="#080b18" stroke-width="1"/></svg><span>SPACE DRIFT</span><span class="version">LOCAL EXPLORER / 001</span></a>
+    <div class="connection"><span class="status-dot"></span><span id="connection">No folder connected</span><span class="local-tag">LOCAL ONLY</span></div>
+    <button class="folder-button" id="folder-button" aria-label="Choose a local folder">Connect folder</button>
     <button class="icon-button" id="help-button" title="Flight manual (H)" aria-label="Open flight manual">?</button>
   </header>
   <main>
@@ -21,8 +22,11 @@
       <div class="eyebrow"><span class="tiny-cross">+</span> A WORLD IN YOUR WORKSPACE</div>
       <h1>Your files.<br><em>In orbit.</em></h1>
       <p>Your folders are islands. Your files have gravity.<br>Take a small ship into the space between them.</p>
-      <button class="primary" id="launch" disabled>Mapping your folder… <span>↗</span></button>
-      <div class="intro-note">A living map, made from your actual files.</div>
+      <button class="primary" id="choose-folder">Choose a folder <span>↗</span></button>
+      <button class="primary" id="launch" hidden disabled>Launch expedition <span>↗</span></button>
+      <div class="intro-note" id="folder-note">Your files stay on this device. Nothing is uploaded.</div>
+      <button class="text-button snapshot-picker" id="snapshot-picker">Use the snapshot folder picker ↗</button>
+      <p id="folder-error" class="folder-error" role="alert" hidden></p>
     </section>
     <section class="mission panel" id="mission" hidden aria-label="Expedition progress">
       <div class="eyebrow">EXPEDITION 01 <span id="mission-state">IN PROGRESS</span></div>
@@ -37,11 +41,13 @@
     <div class="reticle" id="reticle" hidden aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <aside class="world-info panel">
       <div class="eyebrow">WORLD SIGNATURE <span>↗</span></div>
-      <div class="world-name" id="world-name">Connecting…</div>
+      <div class="world-name" id="world-name">Your next destination</div>
       <div class="world-stats"><div><strong id="file-count">—</strong><span>FILES</span></div><div><strong id="district-count">—</strong><span>DISTRICTS</span></div><div><strong id="world-size">—</strong><span>DATA MASS</span></div></div>
       <div class="legend"><span><i class="cyan"></i>Recent activity</span><span><i class="lilac"></i>File mass</span></div>
       <button class="text-button" id="currents-toggle" aria-pressed="true"><span class="toggle-track"><i></i></span>Data currents <span id="currents-state">ON</span></button>
       <p class="physics-note">Size gives mass. Recent edits stir the currents.</p>
+      <p class="source-note" id="source-note">Connect a folder to create your world.</p>
+      <div class="source-actions"><button class="text-button" id="refresh-folder" hidden>Refresh</button><button class="text-button" id="disconnect-folder" hidden>Disconnect</button></div>
     </aside>
     <aside class="file-panel panel" id="file-panel" hidden>
       <div class="eyebrow"><span id="file-status">SIGNAL DETECTED</span><span id="file-distance">—</span></div>
@@ -55,10 +61,11 @@
     <div class="destination" id="destination" hidden><span class="eyebrow">COURSE SET</span><strong id="destination-name"></strong><button id="cancel-course" aria-label="Cancel course">×</button><span id="destination-distance"></span></div>
     <div class="touch-controls" aria-label="Touch flight controls"><button data-key="KeyA" aria-label="Steer left">↶</button><button data-key="KeyW" aria-label="Thrust forward">↑</button><button data-key="KeyD" aria-label="Steer right">↷</button><button data-key="KeyE" aria-label="Open nearby file">E</button><button data-key="KeyQ" aria-label="Fire probe">◉</button><button data-key="KeyC" aria-label="Center reticle">⊙</button></div>
   </main>
-  <footer><div class="coordinates"><span class="tiny-cross">+</span><span id="coordinates">X 0000 &nbsp; Y 0000 &nbsp; Z 0000</span></div><div class="footer-center"><span id="scan-time">READING FOLDER</span><span class="separator">·</span><span id="privacy-note">FILES STAY LOCAL</span></div><button id="map-button" class="map-button"><span>⌘</span> Atlas <kbd>M</kbd></button><button id="pause-button" class="icon-button" title="Pause flight" aria-label="Pause flight">Ⅱ</button></footer>
+  <footer><div class="coordinates"><span class="tiny-cross">+</span><span id="coordinates">X 0000 &nbsp; Y 0000 &nbsp; Z 0000</span></div><div class="footer-center"><span id="scan-time">CHOOSE A FOLDER</span><span class="separator">·</span><span id="privacy-note">FILES STAY LOCAL</span></div><button id="map-button" class="map-button" disabled><span>⌘</span> Atlas <kbd>M</kbd></button><button id="pause-button" class="icon-button" title="Pause flight" aria-label="Pause flight">Ⅱ</button></footer>
   <dialog id="atlas"><div class="dialog-top"><div><div class="eyebrow">WORKSPACE ATLAS</div><h2>Choose a current.</h2></div><button class="close-dialog" aria-label="Close atlas">×</button></div><p>Pick a district to fly there. Take the controls at any time.</p><label class="search"><span>⌕</span><input id="atlas-search" type="search" placeholder="Find a folder or file…" autocomplete="off"></label><div id="atlas-results"></div><div class="dialog-note">Routes are simulated. Your files stay exactly where they are.</div></dialog>
   <dialog id="manual"><div class="dialog-top"><div><div class="eyebrow">FIELD NOTES / 001</div><h2>A pilot’s guide.</h2></div><button class="close-dialog" aria-label="Close manual">×</button></div><div class="manual-grid"><span>Thrust / reverse</span><div><kbd>W</kbd> <kbd>S</kbd></div><span>Steer left / right</span><div><kbd>A</kbd> <kbd>D</kbd></div><span>Rise / descend</span><div><kbd>R</kbd> <kbd>F</kbd></div><span>Boost</span><kbd>SHIFT</kbd><span>Brake</span><kbd>SPACE</kbd><span>Open a nearby file</span><kbd>E</kbd><span>Aim reticle</span><span>Mouse / touch drag</span><span>Fire a probe</span><span>Click / <kbd>Q</kbd></span><span>Center reticle</span><kbd>C</kbd><span>Choose a destination</span><kbd>M</kbd><span>Pause / resume</span><kbd>ESC</kbd><span>Return to starting point</span><kbd>HOME</kbd></div><div class="manual-rule"><h3>Physics, drawn from your data.</h3><p>Folders form districts. File size sets each object’s mass. Recently modified files create stronger currents, and observed edits send out ripples. Gravity and drift are a playful simulation of that metadata.</p><p>Move the reticle independently of the ship, then click or press Q to send a probe to a locked file within 160 units. Press C to center it on your forward vector. Press E near a file to open it; contents are read on demand and stay on this computer. Hidden files, dependencies and generated folders are excluded. The map refreshes every five seconds.</p></div><button class="primary close-manual">Ready to fly <span>↗</span></button></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
+  <input id="folder-input" type="file" webkitdirectory directory multiple hidden aria-label="Choose a folder snapshot">
   <div id="error" hidden role="alert"><h2>The map couldn’t load.</h2><p id="error-message"></p><button class="primary" id="retry">Try again ↗</button></div>
   <script type="module" src="/main.js"></script>
 </body>

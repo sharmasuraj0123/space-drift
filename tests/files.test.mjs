@@ -8,7 +8,7 @@ import { FileAccessError, TEXT_PREVIEW_LIMIT, launchMappedFile, openMappedFile, 
 import { createServer } from '../server.mjs';
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'space-files-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'space-drift-files-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }
@@ -165,7 +165,7 @@ test('HTTP file preview provides text and seekable media while enforcing access 
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
   const health = await (await fetch(`${base}/api/health`)).json();
-  assert.equal(health.name, 'Space');
+  assert.equal(health.name, 'Space Drift');
   assert.ok(health.capabilities.includes('file-preview'));
   const response = await fetch(`${base}/api/file?path=note.html`);
   assert.equal(response.status, 200);

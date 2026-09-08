@@ -1,26 +1,59 @@
-# Space
+# Space Drift
 
-![A ship flying through glowing folder districts and file crystals in space.](assets/space-hero.svg)
+![A ship flying through glowing folder districts and file crystals in space.](assets/space-drift-hero.svg)
 
-Fly a small ship through a living map of a local folder. Folders form districts, file size gives objects mass, and file activity creates currents you can feel while flying. This is a local prototype: your folder supplies the world, and the game maps file names and metadata, then reads file contents locally when you press E to open them.
+Fly a small ship through a living map of a local folder. Folders form districts, file size gives objects mass, and file activity creates currents you can feel while flying. The hosted game runs entirely in your browser: choose a folder, fly through its metadata, and press E to read a file locally. An optional Node.js server retains desktop-app integration for local use.
 
-## Run
+## Use a local folder in the browser
 
-Requires Node.js 20 or newer and npm.
+Open the hosted HTTPS app and choose a folder through the folder button. The browser grants Space Drift read access to that selection; files are not uploaded. WebGL is required for the game.
+
+- **Chrome and Edge:** the directory-handle picker allows the game to scan the chosen folder again every five seconds while the page is open. Edits and newly added or removed files become activity in the world. The picker requires a secure context (HTTPS, or a trusted loopback development address) and a direct click. See the [directory picker API](https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker).
+- **Other browsers:** the directory-input fallback provides a snapshot of the selected files through `webkitdirectory`. Choose the folder again to refresh it after changes. The browser may label the selection as an upload, but Space Drift processes that selection locally. Relative paths come from the [browser's File API](https://developer.mozilla.org/en-US/docs/Web/API/File/webkitRelativePath).
+
+Folder access lasts for this page session. Browsers can deny access to protected folders; choose another folder if the picker refuses it. The hosted app has no local Git-process access, native-app launching, or Finder integration. It shows the files exposed by your chosen folder, rather than reading Git history or watching disk traffic.
+
+## Build and preview
+
+Requires Node.js 20 or newer and npm for development and builds. The deployed app does not need a Node server.
 
 ```sh
-cd data-drift
-npm install
+cd space-drift
+npm ci
+npm run build
+npm run preview
+```
+
+Open [the static preview](http://127.0.0.1:4190) and choose a folder in the browser. `npm run build` produces `dist/` from the public app plus the two Three.js runtime modules and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C.
+
+## Deploy to Vercel
+
+Import this repository into Vercel with its repository root as the Root Directory. The included `vercel.json` selects the **Other** framework preset (`framework: null`), runs `npm run build`, and publishes `dist/`. These are the documented [Vercel build configuration fields](https://vercel.com/docs/project-configuration/vercel-json). No runtime functions or API rewrites are needed, and no environment variables are required by the app.
+
+For CLI deployment, link the repository to the intended Vercel account/project, then deploy a preview:
+
+```sh
+vercel link
+vercel deploy
+```
+
+Check the preview's folder selection, flight, and E file opening before promoting or deploying production. `.vercelignore` excludes local project metadata, dependencies, generated output, environment files, and the optional Node backend from deployment uploads. The build publishes only browser assets; selected folders never enter the build or deployment.
+
+## Optional local server
+
+The original Node mode remains available for automatic scanning and desktop-app opening:
+
+```sh
 npm start
 ```
 
-Open [Space](http://127.0.0.1:4188). The default map is the containing `quirq` project. To explore another folder or use a different port:
+Open [local server mode](http://127.0.0.1:4188). Its default map is the parent folder containing this repository (the `quirq` project in the original workspace). To select another folder or port:
 
 ```sh
 npm start -- --root "/absolute/path/to/your/folder" --port 4188
 ```
 
-Stop the server with Ctrl+C. Your browser needs WebGL support.
+The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can use the local filesystem scanner and the supported macOS desktop opener.
 
 ## Fly
 
@@ -39,61 +72,50 @@ Stop the server with Ctrl+C. Your browser needs WebGL support.
 
 Click **Launch expedition** to begin. Chart five files to complete the first expedition, then keep exploring. Exploration progress lasts for the current browser session. Touch controls provide forward thrust, left/right steering, proximity opening, probe firing, and reticle centering; drag open space to aim. The atlas handles longer trips.
 
-The interface includes exploration and navigation controls. The world refreshes from disk every five seconds while the page is open. Edit, add, rename, or move a file in your normal editor or file manager to create activity in the map. The game itself does not change your files.
+The interface includes exploration and navigation controls. A live directory handle or the optional local server refreshes the world every five seconds while the page is open; a directory-input snapshot requires choosing the folder again. Edit, add, rename, or move a file in your normal editor or file manager to create activity. The game itself does not change your files.
 
 ## Tech stack
 
 | Layer | Technology | Role |
 | --- | --- | --- |
-| Runtime | Node.js 20+ | Runs the local server and filesystem scanner. |
-| Server | Native `node:http` | Serves the app and local-only JSON/file endpoints. |
-| 3D rendering | [Three.js](https://threejs.org/) | Draws the browser-based space map and ship. |
-| Client | Vanilla JavaScript ES modules, HTML, and CSS | Handles input, atlas navigation, UI, and the file viewer. |
-| Filesystem | Node.js `fs`, `path`, and streams APIs | Scans eligible files and provides bounded local previews. |
+| Hosted app | Static HTML, CSS, and JavaScript ES modules | Runs the game without a backend. |
+| 3D rendering | [Three.js](https://threejs.org/) | Draws the space map and ship. |
+| Browser files | Directory handles or `webkitdirectory` file snapshots | Reads selected-folder metadata and on-demand local previews. |
+| Build / preview | Node.js 20+ and native filesystem/HTTP APIs | Copies public assets and serves a local static preview. |
+| Optional local server | Native `node:http`, filesystem APIs and streams | Supplies bounded filesystem scans, file previews, and desktop integration. |
 | Tests | Node.js built-in test runner | Covers scanning, file access, physics, and HTTP boundaries. |
 
 ## Architecture
 
 ```text
-                                  LOCAL MACHINE ONLY
-+----------------------+                 |                 +------------------------+
-| Selected workspace   |                 |                 | Browser                |
-| folders and files    |                 |                 | Three.js + vanilla JS  |
-+----------+-----------+                 |                 +-----------+------------+
-           |                             |                             |
-           | bounded scan: names, paths, |                             | GET /api/world
-           | sizes, timestamps; ignores  |                             | every 5 seconds
-           | hidden/generated/unsafe     |                             v
-           v                             |                 +-----------+------------+
-+----------+----------------------------+--+              | Space server           |
-| lib/scan.mjs                             |              | node:http on 127.0.0.1 |
-| creates world snapshots and change events |              +-----------+------------+
-+----------+----------------------------+--+                          |
-           ^                             |                             | checks requested path
-           | E opens a mapped file only  |                             | against latest eligible map
-           |                             |                             v
-+----------+----------------------------+--+              +-----------+------------+
-| Local file preview / media stream        | <-----------> | File viewer / atlas    |
-| text, image, PDF, audio, or video        |   /api/file   | user interaction       |
-+-------------------------------------------+   endpoints  +------------------------+
+Vercel / static host                     YOUR COMPUTER
+┌─────────────────────┐           ┌────────────────────────────────────┐
+│ HTML + CSS + JS     │ ────────>  │ Browser: ship, world, atlas, viewer │
+│ Three.js modules   │           │                ↕                   │
+└─────────────────────┘           │ Chosen local folder / file snapshot│
+                                 └────────────────────────────────────┘
+                                  Metadata and contents stay here.
+
+Optional local mode on the same computer:
+Browser ↔ 127.0.0.1 Node server ↔ eligible local files / macOS opener
 ```
 
-The browser receives map metadata during normal refreshes. It requests file contents only after you choose a mapped file to preview; the server stays bound to `127.0.0.1` and rejects paths outside the eligible map.
+The hosted app reads a user-selected folder through browser file APIs. Map metadata and file previews remain in the browser; there is no hosted `/api/world` or file-content service. In optional local-server mode, `/api/world` provides snapshots and the local file endpoints provide previews, with paths confined to the eligible map. The built `runtime.json` sets `localServer: false`, so hosted pages skip local API requests; the optional Node server overrides that route with `localServer: true`.
 
 ## Flight and exploration flow
 
 ```text
-Open Space
+Open Space Drift
     |
     v
-Load world snapshot --------------------> districts, file crystals, activity currents
+Choose folder / load local snapshot ----> districts, file crystals, activity currents
     |
     v
 Launch expedition
     |
     +--> Manual flight: W/A/S/D, R/F, Shift, Space
     |          |
-    |          +--> approach a crystal and press E, or aim and fire a probe with Q/click
+    |          +--> press E nearby, or aim and fire from up to 90 units away
     |          |          |
     |          |          +--> open local preview --> close / Escape --> resume at the same location
     |          |          |
@@ -106,48 +128,27 @@ Launch expedition
 
 ## Open a file
 
-Approach a crystal and press **E**, or use **M** to find a file and fly to it. You can also move the reticle with the mouse (or a touch drag), lock a distant crystal, and click or press **Q** to send a probe up to 160 units away. Press **C** to recenter the reticle. A probe opens the file on arrival and pauses flight just like an E open; a target outside range reports that it is too far away. Space pauses flight while the file viewer is open and holds position after guided arrival; any movement key resumes manual flight. Text/code, images, PDFs, audio, and video display inside the viewer. Press **Escape** or close the viewer to return to the same location.
-
-Use **Open in desktop app** to open documents in their normal macOS application; text and code use the text editor. Files without a built-in preview still have this option where appropriate. Unknown, archive, and executable formats use **Show in Finder** instead. Desktop integration currently supports macOS.
-
-## How the map works
-
-- Top-level folders form up to 24 districts; nested files retain their full relative paths and are searchable in the atlas. Additional folders are grouped into an overflow district.
-- File sizes provide relative mass. Recently changed files provide activity.
-- Later snapshots detect created, modified, deleted, and moved files. Move detection requires a unique matching filesystem identity; when that is unavailable, changes appear as creation and deletion.
-- The initial scan establishes a baseline. There is no historical change log before the server starts.
-- Event history holds the latest 40 changes in memory and resets when the server restarts.
-
-File crystals have collision and gentle gravity proportional to logarithmic file size. Floating platforms, folder markers and route lines are passable map decoration. These forces and routes are a game interpretation of metadata, not measured disk traffic or semantic relationships between file contents. Nested files share their top-level district; there are no nested-folder interiors yet.
-
-The scanner maps at most 2,500 files, inspects at most 25,000 directory entries, limits nesting, and stops after ten seconds of scanning. When the file cap applies, it shares the map budget across top-level folders so smaller districts remain represented. Hidden entries, dependency and build folders, common cache folders, symlinks, and private-key extensions are excluded. Omission counts are exact when directory discovery finishes, or flagged as a lower bound when an entry, depth, time, or access limit prevents a full count. Creation, deletion, and move events are suppressed across incomplete scans to avoid inventing activity.
-
-## Local data access
-
-The server binds to `127.0.0.1`, accepts only its own local host and origin, and keeps all file access confined to the currently mapped, eligible files. `/api/world` returns names, relative paths, sizes, modification times, and recent metadata changes. `/api/file` reads a requested mapped file for preview, and `/api/file-content` streams image/PDF/audio/video content. Text previews use plain text, capped at 256 KiB; executable HTML is never rendered as a page. The desktop-opening endpoint accepts same-origin JSON requests and uses the macOS document opener without a shell. Source and script files open as text; unknown and executable formats are revealed in Finder. Space does not upload files or maps or send them to an AI service. An external desktop application uses its own settings.
-
-## Verify
-
-```sh
-npm test
-```
-
-Tests cover scanning, ignored entries, symlinks, bounded scans, actual file-change detection, concurrent requests, event limits, and HTTP access boundaries.
-
-The pure model tests additionally cover deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, empty maps, and probe target/range selection. `npm run check` checks server and browser JavaScript syntax. A read-only `window.__SPACE__.getState()` diagnostic reports position, velocity, current destination, reticle lock, in-flight probe, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
+The pure model tests additionally cover deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, and empty maps. `npm run check` checks server and browser JavaScript syntax. A read-only `window.__SPACE_DRIFT__.getState()` diagnostic reports position, velocity, current destination, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
 
 Initial flight prototype verified locally on 2026-09-07: all 14 original tests and syntax checks passed; browser playtesting covered launch, keyboard thrust/steering/altitude, atlas search, continuous flight to `PROJECT.md`, targeted E scanning, live creation/modification events, 1280×800 and 390×844 layouts, and a clean browser error log.
 
-The Space update passes 22 tests covering file access, safe text previews, media ranges, and desktop launch arguments with an injected executor. Browser checks verified text and PDF opening with E, reopening a visited file without duplicate progress, paused flight during reading, held arrival, and desktop/mobile viewer layouts.
+The Space Drift update passes 22 tests covering file access, safe text previews, media ranges, and desktop launch arguments with an injected executor. Browser checks verified text and PDF opening with E, reopening a visited file without duplicate progress, paused flight during reading, held arrival, and desktop/mobile viewer layouts.
+
+The hosted-folder update was verified on 2026-09-08: all 37 tests, syntax checks, and the static build pass. Browser checks against the static preview covered selecting a real folder snapshot, atlas-guided flight, E text opening and reopening, switching folders, disconnecting, hidden-file exclusions, and desktop/mobile layouts with no browser errors. The optional Node server still connects automatically. Live directory refresh, permission failures, cancellation, and scan limits are covered by automated handle tests; the native Chrome/Edge directory picker still needs an interactive check on the deployed site.
 
 ## Code map
 
-- `server.mjs`: local HTTP server and access boundaries.
+- `vercel.json`: static hosting build and output settings.
+- `scripts/build.mjs`: browser-asset build with the required Three.js modules.
+- `scripts/preview.mjs`: confined static preview on loopback port 4190.
+- `scripts/check.mjs`: syntax checks for app, server, scripts, and test modules.
+- `server.mjs`: optional local HTTP server and access boundaries.
 - `lib/scan.mjs`: bounded folder scan and metadata differences.
 - `lib/files.mjs`: confined file access, bounded previews, and desktop opening.
+- `public/folder-source.js`: bounded browser-directory scans, file snapshots, and live metadata differences.
 - `public/model.js`: repeatable world generation and flight physics.
 - `public/main.js`: Three.js scene, controls, guided flight and exploration.
 - `public/viewer.js` / `viewer.css`: local file viewer and return-to-flight behavior.
-- `public/index.html` / `styles.css`: Space branding and responsive controls.
+- `public/index.html` / `styles.css`: Space Drift branding and responsive controls.
 
 Inspired by [Building games with Astra](https://developers.openai.com/blog/how-to-build-games-with-astra): begin with a playable experience, separate simulation from rendering, and expose enough state to verify actual journeys.
