@@ -14,6 +14,9 @@ const SHIP_RADIUS = 1.4;
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 const finite = (n, fallback = 0) => Number.isFinite(Number(n)) ? Number(n) : fallback;
 
+export const PROBE_MAX_RANGE = 160;
+export const PROBE_ANGLE_TOLERANCE = .035;
+
 /** Stable unsigned FNV-1a hash; layout never depends on Math.random(). */
 export function hash(value) {
   const text = String(value);
@@ -283,53 +286,57 @@ export function findNearestFile(world, position, maxDistance = Infinity) {
   return nearest;
 }
 
-/** Nearby files need no aim; ranged shots use yaw with forgiving altitude. */
-export function findScanCandidate(world, ship, focusedFileId = null) {
-  const files = world?.files || [];
-  const rangeTo = (file) => Math.hypot(file.position.x - ship.position.x, file.position.y - ship.position.y, file.position.z - ship.position.z);
-  const focused = files.find((file) => file.id === focusedFileId);
-  if (focused && rangeTo(focused) <= SCAN_RANGE) return focused;
-  const nearby = findNearestFile(world, ship.position, SCAN_RANGE);
-  if (nearby) return nearby;
-  // Keep the atlas lock in range, but never override a point-blank file.
-  if (focused && rangeTo(focused) <= SHOT_RANGE) return focused;
-
-  let best = null, bestAngle = Infinity, bestDistance = Infinity;
-  for (const file of files) {
-    const dx = file.position.x - ship.position.x, dy = file.position.y - ship.position.y, dz = file.position.z - ship.position.z;
+/**
+ * Select the closest file inside an aim ray's angular cone. The renderer owns
+ * ray construction; keeping this comparison here makes the targeting rule
+ * deterministic and testable without Three.js.
+ */
+export function findProbeTarget(files, origin, direction, { angularTolerance = PROBE_ANGLE_TOLERANCE, maxDistance = Infinity } = {}) {
+  const length = Math.hypot(finite(direction?.x), finite(direction?.y), finite(direction?.z));
+  if (!length || angularTolerance < 0) return null;
+  const ray = { x: finite(direction.x) / length, y: finite(direction.y) / length, z: finite(direction.z) / length };
+  const minimumDot = Math.cos(angularTolerance);
+  let target = null;
+  for (const file of files || []) {
+    const dx = finite(file.position?.x) - finite(origin?.x);
+    const dy = finite(file.position?.y) - finite(origin?.y);
+    const dz = finite(file.position?.z) - finite(origin?.z);
     const distance = Math.hypot(dx, dy, dz);
-    if (distance > SHOT_RANGE || Math.abs(dy) > SHOT_VERTICAL_TOLERANCE || Math.hypot(dx, dz) === 0) continue;
-    const heading = Math.atan2(-dx, -dz);
-    const angle = Math.abs(Math.atan2(Math.sin(heading - ship.yaw), Math.cos(heading - ship.yaw)));
-    if (angle > SHOT_HALF_ANGLE) continue;
-    if (angle < bestAngle || angle === bestAngle && distance < bestDistance) {
-      best = file; bestAngle = angle; bestDistance = distance;
-    }
+    if (!distance || distance > maxDistance) continue;
+    const dot = (dx * ray.x + dy * ray.y + dz * ray.z) / distance;
+    if (dot < minimumDot || (target && distance >= target.distance)) continue;
+    target = { file, distance, angle: Math.acos(clamp(dot, -1, 1)) };
   }
-  return best;
+  return target;
 }
 
-/** A shot leaves the ship's nose and keeps its launch/impact points as flight continues. */
-export function createFileShot(ship, file) {
-  const start = { x: ship.position.x - Math.sin(ship.yaw) * 5.4, y: ship.position.y + .6, z: ship.position.z - Math.cos(ship.yaw) * 5.4 };
-  const end = { ...file.position };
-  const distance = Math.hypot(end.x - start.x, end.y - start.y, end.z - start.z);
-  return { file, start, end, distance, duration: Math.max(.45, distance / 100), age: 0, progress: 0, phase: 'flight' };
+/** Create a cosmetic probe. A null result means its target is out of range. */
+export function createProbe(origin, target, maxDistance = PROBE_MAX_RANGE) {
+  const targetPosition = target?.position;
+  const distance = Math.hypot(
+    finite(targetPosition?.x) - finite(origin?.x),
+    finite(targetPosition?.y) - finite(origin?.y),
+    finite(targetPosition?.z) - finite(origin?.z),
+  );
+  if (!targetPosition || !Number.isFinite(distance) || distance > maxDistance) return null;
+  const start = { x: finite(origin?.x), y: finite(origin?.y), z: finite(origin?.z) };
+  return {
+    id: target.id,
+    origin: start,
+    target: { x: finite(targetPosition.x), y: finite(targetPosition.y), z: finite(targetPosition.z) },
+    position: { ...start },
+    elapsed: 0,
+    duration: clamp(.3 + distance / 320, .3, .8),
+  };
 }
 
-/** Emit each event once, leaving a visible impact beat before the modal opens. */
-export function stepFileShot(shot, dt) {
-  if (shot.phase === 'complete') return null;
-  shot.age += clamp(finite(dt), 0, .1);
-  if (shot.phase === 'flight') {
-    shot.progress = Math.min(1, shot.age / shot.duration);
-    if (shot.progress < 1) return null;
-    shot.phase = 'impact'; shot.age = 0;
-    return 'impact';
-  }
-  if (shot.age < .2) return null;
-  shot.phase = 'complete';
-  return 'open';
+/** Advance a probe in place and report whether it reached its target. */
+export function stepProbe(probe, dt = 0) {
+  if (!probe) return true;
+  probe.elapsed = clamp(finite(probe.elapsed) + Math.max(0, finite(dt)), 0, finite(probe.duration));
+  const progress = probe.duration ? probe.elapsed / probe.duration : 1;
+  for (const axis of ['x', 'y', 'z']) probe.position[axis] = probe.origin[axis] + (probe.target[axis] - probe.origin[axis]) * progress;
+  return progress >= 1;
 }
 
 export function formatBytes(value) {

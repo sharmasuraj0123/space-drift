@@ -64,11 +64,13 @@ The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can
 - Shift: boost.
 - Space: brake.
 - E: open the selected file within 18 units. Opening a new file also charts it; visited files can be reopened.
+- Move the mouse, or drag the scene on touch: move the aiming reticle independently of the ship. A cyan reticle locks onto the closest file in its narrow aim cone.
+- Left click or Q: fire a probe at the locked file. Probes reach files within 160 units, then open and chart them exactly like a proximity open. C: center the reticle on the ship's forward vector.
 - M: open the atlas; search for a file or choose a folder to fly there automatically. Any steering input returns manual control.
 - Escape: pause or resume flight. H: open the flight manual.
 - Home: return to the launch point.
 
-Click **Launch expedition** to begin. Chart five files to complete the first expedition, then keep exploring. Exploration progress lasts for the current browser session. Touch controls provide forward thrust, left/right steering, and opening files; the atlas handles longer trips.
+Click **Launch expedition** to begin. Chart five files to complete the first expedition, then keep exploring. Exploration progress lasts for the current browser session. Touch controls provide forward thrust, left/right steering, proximity opening, probe firing, and reticle centering; drag open space to aim. The atlas handles longer trips.
 
 The interface includes exploration and navigation controls. A live directory handle or the optional local server refreshes the world every five seconds while the page is open; a directory-input snapshot requires choosing the folder again. Edit, add, rename, or move a file in your normal editor or file manager to create activity. The game itself does not change your files.
 
@@ -125,38 +127,6 @@ Launch expedition
 ```
 
 ## Open a file
-
-Press **E** to open a nearby crystal (within 18 units, no aiming needed), or aim the ship at a signal up to 90 units away and fire with the same key. The centre reticle lights up and names the file that will open. A ranged shot visibly launches from the ship, travels to the crystal, and flashes on impact before opening the viewer; you can keep flying during the shot. Nearby opens remain instant. Ranged shots use a 12° horizontal half-angle and allow up to 30 units of vertical offset; aim matters more than distance, and an atlas-selected file stays locked while within 90 units (nearby files still take priority). Use **M** to find a file and set a course. Space Drift pauses flight while the file viewer is open: a ranged shot preserves your velocity for closing the viewer, while a nearby open or guided arrival holds position until a movement key resumes manual flight. Text/code, images, PDFs, audio, and video display inside the viewer. Press **Escape** or close the viewer to return to the same location.
-
-In optional local-server mode on macOS, **Open in desktop app** opens documents in their normal application; text and code use the text editor. Files without a built-in preview retain this option where appropriate. Unknown, archive, and executable formats use **Show in Finder**. These desktop actions are unavailable in hosted/browser-folder mode.
-
-## How the map works
-
-- Top-level folders form up to 24 districts; nested files retain their full relative paths and are searchable in the atlas. Additional folders are grouped into an overflow district.
-- File sizes provide relative mass. Recently changed files provide activity.
-- A live browser directory detects created, modified, and deleted files using relative paths, sizes, and modification times. A rename or move appears as deletion plus creation because browser handles do not expose a stable filesystem identity. The optional Node scanner can match a unique filesystem identity and report a move.
-- The initial scan establishes a baseline. There is no historical change log before the folder is opened.
-- Event history holds the latest 40 changes in memory. Browser-folder history resets with the folder session; local-server history resets when the server restarts.
-
-File crystals have collision and gentle gravity proportional to logarithmic file size. Floating platforms, folder markers and route lines are passable map decoration. These forces and routes are a game interpretation of metadata, not measured disk traffic or semantic relationships between file contents. Nested files share their top-level district; there are no nested-folder interiors yet.
-
-The browser source maps at most 2,500 files, inspects at most 25,000 directory entries, limits nesting to 32 levels, and limits scanning to ten seconds. It shares the map budget across top-level folders so smaller districts remain represented. Hidden entries, dependency and build folders, common cache folders, and private-key extensions are excluded; unsafe or duplicate relative paths are unavailable. The optional Node scanner applies comparable bounds and also excludes symlinks. Omission counts are exact when discovery finishes, or flagged as a lower bound when an entry, depth, time, or access limit prevents a full count. Creation and deletion events are suppressed across incomplete live scans to avoid inventing activity.
-
-## Local data access
-
-**Hosted/browser-folder mode:** the page reads only the folder or file snapshot selected through the browser picker. Metadata and file contents are kept on your device; Space Drift sends neither to Vercel, a database, or an AI service. Text previews are rendered as plain text and capped at 256 KiB, including source HTML and SVG. Supported image, PDF, audio, and video previews use local browser object URLs; unsupported formats can be opened separately using your file manager. The static host serves the application assets and receives ordinary asset requests, not your chosen folder.
-
-**Optional Node mode:** the server binds to `127.0.0.1`, accepts only its own local host and origin, and confines file access to currently mapped, eligible files. `/api/world` returns names, relative paths, sizes, modification times, and recent metadata changes. `/api/file` reads a requested mapped file for preview, and `/api/file-content` streams image/PDF/audio/video content. Text previews are capped at 256 KiB; executable HTML is never rendered as a page. The same-origin JSON desktop endpoint uses the macOS opener without a shell. Source and script files open as text; unknown and executable formats are revealed in Finder. An external desktop application uses its own settings.
-
-## Verify
-
-```sh
-npm run check
-npm test
-npm run build
-```
-
-Tests cover scanning, ignored entries, symlinks, bounded scans, actual file-change detection, concurrent requests, event limits, and HTTP access boundaries.
 
 The pure model tests additionally cover deterministic layout, frame-rate-independent movement, boosted collision, crystal-tip collision, bounded mass attraction, and empty maps. `npm run check` checks server and browser JavaScript syntax. A read-only `window.__SPACE_DRIFT__.getState()` diagnostic reports position, velocity, current destination, exploration progress, render counters, and live-event counts; the same snapshot is available on `#scene` as `data-telemetry`.
 

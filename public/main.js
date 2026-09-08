@@ -1,5 +1,5 @@
 import * as THREE from '/vendor/three.module.js';
-import { buildWorld, stepShip, findNearestFile, findScanCandidate, createFileShot, stepFileShot, SCAN_RANGE, SHOT_RANGE, formatBytes, hash } from './model.js';
+import { buildWorld, stepShip, findNearestFile, findProbeTarget, createProbe, stepProbe, formatBytes, hash } from './model.js';
 import { createFileViewer } from './viewer.js';
 import { createDirectorySource, createSnapshotSource } from './folder-source.js';
 
@@ -13,6 +13,7 @@ const state = {
   charted: new Set(), visited: new Set(), destination: null, nearest: null,
   time: 0, fps: 60, signature: '', seenEvents: new Set(), loading: false,
   focusedFileId: null,
+  reticle: { x: .5, y: .5 }, reticleTarget: null, probe: null, probeReadyAt: 0,
   disconnected: false,
   holding: false,
   source: null, sourceVersion: 0, loadAbort: null, choosing: false, connecting: false, selectionAbort: null,
@@ -50,6 +51,8 @@ const worldGroup = new THREE.Group(); scene.add(worldGroup);
 let fileInstances, signalPoints, sectorLabels = [], lanes = [], ripples = [];
 const dummy = new THREE.Object3D();
 const color = new THREE.Color();
+const raycaster = new THREE.Raycaster();
+let probeMesh;
 
 function glowTexture() {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
@@ -453,11 +456,43 @@ function addRipple(position, tint = 0xaab8ff) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(.95, 1, 80), new THREE.MeshBasicMaterial({ color: tint, side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.copy(v(position)); scene.add(ring); ripples.push({ mesh: ring, age: 0 });
 }
+function updateReticleTarget() {
+  if (!state.launched || !state.world) { state.reticleTarget = null; return; }
+  camera.updateMatrixWorld();
+  raycaster.setFromCamera({ x: state.reticle.x * 2 - 1, y: 1 - state.reticle.y * 2 }, camera);
+  state.reticleTarget = findProbeTarget(state.world.files, raycaster.ray.origin, raycaster.ray.direction);
+  if (state.reticleTarget) state.focusedFileId = state.reticleTarget.file.id;
+  $('reticle').classList.toggle('locked', !!state.reticleTarget);
+}
+function moveReticle(clientX, clientY) {
+  state.reticle.x = clamp(clientX / innerWidth, .03, .97); state.reticle.y = clamp(clientY / innerHeight, .08, .93);
+  $('reticle').style.left = `${state.reticle.x * 100}%`; $('reticle').style.top = `${state.reticle.y * 100}%`;
+  updateReticleTarget();
+}
+function recenterReticle() { moveReticle(innerWidth / 2, innerHeight / 2); toast('Reticle centered on your forward vector.'); }
+function removeProbeMesh() {
+  if (!probeMesh) return;
+  scene.remove(probeMesh); probeMesh.geometry.dispose(); probeMesh.material.dispose(); probeMesh = null;
+}
+function fireProbe() {
+  if (!state.launched || state.paused || anyDialog()) return;
+  if (state.probe || performance.now() < state.probeReadyAt) { toast('Probe systems recharging.'); return; }
+  updateReticleTarget();
+  const target = state.reticleTarget?.file;
+  if (!target) { toast('No file signal under the reticle.'); return; }
+  const probe = createProbe(state.ship.position, target);
+  if (!probe) { toast('Target out of probe range.'); return; }
+  state.destination = null; state.holding = false; state.probe = probe; state.probeReadyAt = performance.now() + 550;
+  probeMesh = new THREE.Mesh(new THREE.SphereGeometry(.42, 12, 12), new THREE.MeshBasicMaterial({ color: 0x68e4ef, transparent: true, opacity: .9 }));
+  probeMesh.position.copy(v(probe.position)); scene.add(probeMesh);
+  toast(`Probe launched toward ${target.name}.`);
+}
 let toastTimer;
 function toast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 4300); }
 function launch() {
   if (!state.world || state.choosing || state.connecting) return;
   state.launched = true; state.paused = false; $('intro').hidden = true; $('mission').hidden = false; $('pause-button').textContent = 'Ⅱ';
+  $('reticle').hidden = false; updateReticleTarget();
   $('scene').focus({ preventScroll: true });
   toast('W to thrust · A / D to steer · E to open a file · M to choose a destination');
 }
@@ -475,10 +510,10 @@ function updateMission() {
   $('sector-count').textContent = `${state.visited.size} district${state.visited.size === 1 ? '' : 's'} visited`;
   $('mission-state').textContent = !total ? 'AWAITING FILES' : progress === 1 ? 'COMPLETE' : 'IN PROGRESS';
 }
-function scanFile() {
-  if (!state.launched || state.paused || anyDialog() || shot) return;
-  const file = scanCandidate();
-  if (!file) { toast('No signal in your sights. Turn toward a crystal, or fly within 18 units.'); return; }
+async function scanFile(file, { ripple = true } = {}) {
+  if (!state.launched || state.paused || anyDialog()) return;
+  file ||= scanCandidate();
+  if (!file) { toast('Move within 18 units of a file to open it. Use the atlas to set a course.'); return; }
   clearInput(); state.destination = null; state.focusedFileId = file.id;
   const ranged = distance(file.position, state.ship.position) > SCAN_RANGE;
   if (!ranged) {
@@ -500,6 +535,7 @@ async function openFile(file, ranged) {
   state.charted.add(file.id); state.visited.add(file.sectorId); updateMission();
   if (firstVisit && !ranged) addRipple(file.position, file.color);
   if (firstVisit) {
+    if (ripple) addRipple(file.position, file.color);
     if (state.charted.size === Math.min(5, state.world.files.length)) toast('Expedition complete. Your first signals are charted. Keep exploring.');
   }
 }
@@ -560,6 +596,8 @@ addEventListener('keydown', (event) => {
   if (movementKeys.includes(event.code)) { if (state.launched && !state.paused) { event.preventDefault(); keys.add(event.code); tapUntil.set(event.code, performance.now() + 90); state.destination = null; state.holding = false; } return; }
   if (event.repeat) return;
   if (event.code === 'KeyE') scanFile();
+  if (event.code === 'KeyQ') fireProbe();
+  if (event.code === 'KeyC') recenterReticle();
   if (event.code === 'KeyM') { event.preventDefault(); openAtlas(); }
   if (event.code === 'KeyH') showManual();
   if (event.code === 'Escape') togglePause();
@@ -570,9 +608,19 @@ addEventListener('keyup', (event) => keys.delete(event.code));
 addEventListener('blur', () => { clearInput(); cancelShot(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); cancelShot(); } });
 for (const button of document.querySelectorAll('[data-key]')) {
-  button.addEventListener('pointerdown', (event) => { event.preventDefault(); button.setPointerCapture(event.pointerId); if (!state.launched) launch(); if (button.dataset.key === 'KeyE') scanFile(); else { keys.add(button.dataset.key); state.destination = null; state.holding = false; } });
+  button.addEventListener('pointerdown', (event) => { event.preventDefault(); button.setPointerCapture(event.pointerId); if (!state.launched) launch(); if (button.dataset.key === 'KeyE') scanFile(); else if (button.dataset.key === 'KeyQ') fireProbe(); else if (button.dataset.key === 'KeyC') recenterReticle(); else { keys.add(button.dataset.key); state.destination = null; state.holding = false; } });
   for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(name, () => keys.delete(button.dataset.key));
 }
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (!state.launched || anyDialog() || (event.pointerType !== 'mouse' && !renderer.domElement.hasPointerCapture(event.pointerId))) return;
+  moveReticle(event.clientX, event.clientY);
+});
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (!state.launched || anyDialog()) return;
+  $('scene').focus({ preventScroll: true });
+  if (event.pointerType === 'touch') { renderer.domElement.setPointerCapture(event.pointerId); return; }
+  if (event.button === 0) { moveReticle(event.clientX, event.clientY); fireProbe(); }
+});
 
 function playerInput() {
   const has = (...codes) => codes.some((code) => keys.has(code) || (tapUntil.get(code) || 0) > performance.now());
@@ -612,7 +660,7 @@ function updateHUD(dt) {
   $('flight-state').textContent = !state.launched ? 'AWAITING PILOT' : paused ? 'FLIGHT PAUSED' : state.destination ? 'FOLLOWING COURSE' : state.holding ? 'HOLDING POSITION' : speed > 65 ? 'BOOST ENGAGED' : speed > 2 ? 'CRUISING' : 'DRIFTING';
   $('view-label').textContent = paused ? 'FLIGHT PAUSED' : state.destination ? 'GUIDED FLIGHT' : 'FREE EXPLORATION';
   $('coordinates').textContent = `X ${Math.round(ship.position.x).toString().padStart(4, '0')}   Y ${Math.round(ship.position.y).toString().padStart(4, '0')}   Z ${Math.round(ship.position.z).toString().padStart(4, '0')}`;
-  const nearest = shot?.file || candidate || findNearestFile(state.world, ship.position, SHOT_RANGE); state.nearest = nearest;
+  const nearest = state.reticleTarget?.file || scanCandidate() || findNearestFile(state.world, ship.position, 90); state.nearest = nearest;
   $('file-panel').hidden = !state.launched || !nearest;
   if (nearest) {
     const range = distance(nearest.position, ship.position), scanned = state.charted.has(nearest.id);
@@ -653,6 +701,15 @@ function animate(time) {
     camera.position.set(100 + Math.sin(orbit) * 12, 103 + Math.sin(orbit * .7) * 5, 207);
     camera.lookAt(0, 0, -80);
   }
+  updateReticleTarget();
+  if (state.probe && !paused) {
+    if (stepProbe(state.probe, dt)) {
+      const target = state.world.files.find((file) => file.id === state.probe.id);
+      removeProbeMesh(); state.probe = null;
+      if (target) { addRipple(target.position, target.color); toast(`Probe reached ${target.name}.`); scanFile(target, { ripple: false }); }
+      else toast('Probe signal was lost.');
+    } else if (probeMesh) probeMesh.position.copy(v(state.probe.position));
+  }
   shipMesh.position.copy(v(state.ship.position)); shipMesh.rotation.y = state.ship.yaw;
   shipMesh.rotation.z = THREE.MathUtils.lerp(shipMesh.rotation.z, (keys.has('KeyA') ? -.25 : keys.has('KeyD') ? .25 : 0), .06);
   const speed = Math.hypot(state.ship.velocity.x, state.ship.velocity.y, state.ship.velocity.z);
@@ -675,7 +732,7 @@ function animate(time) {
     const scale = 1 + ripple.age * 25; ripple.mesh.scale.setScalar(scale); ripple.mesh.material.opacity = Math.max(0, .8 - ripple.age / 3);
   }
   ripples = ripples.filter((r) => { if (r.age < 2.4) return true; scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); return false; });
-  const highlighted = state.destination?.kind === 'file' ? state.destination : state.nearest;
+  const highlighted = state.destination?.kind === 'file' ? state.destination : state.reticleTarget?.file || state.nearest;
   beacon.visible = state.launched && !!highlighted;
   if (highlighted) { beacon.position.copy(v(highlighted.position)); beacon.rotation.y = state.time * .4; }
   navigationLine.visible = !!state.destination;
@@ -694,5 +751,6 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 renderer.domElement.addEventListener('webglcontextlost', (event) => { event.preventDefault(); state.paused = true; $('error').hidden = false; $('error-message').textContent = 'The graphics context was interrupted. Reload to return to the launch point.'; });
 
 // Read-only diagnostics support real-control browser tests without teleport hooks.
-window.__SPACE_DRIFT__ = Object.freeze({ getState: () => ({ ready: !!state.world, source: state.source ? { kind: state.source.kind, name: state.snapshot?.root.name || state.source.name, live: state.source.live } : null, launched: state.launched, paused: state.paused, currents: state.currents, position: { ...state.ship.position }, velocity: { ...state.ship.velocity }, yaw: state.ship.yaw, files: state.world?.files.length || 0, sectors: state.world?.sectors.length || 0, charted: [...state.charted], visited: [...state.visited], destination: state.destination ? { id: state.destination.id, name: state.destination.name, kind: state.destination.kind } : null, nearest: state.nearest ? { id: state.nearest.id, distance: distance(state.ship.position, state.nearest.position) } : null, fps: Math.round(state.fps), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, liveEvents: state.snapshot?.events.length || 0, viewerOpen: fileViewer.isOpen, openedFile: fileViewer.path }) });
-initializeSource(); setInterval(() => { if (state.source?.live) loadWorld(); }, 5000); requestAnimationFrame(animate);
+window.__SPACE__ = Object.freeze({ getState: () => ({ ready: !!state.world, launched: state.launched, paused: state.paused, currents: state.currents, position: { ...state.ship.position }, velocity: { ...state.ship.velocity }, yaw: state.ship.yaw, files: state.world?.files.length || 0, sectors: state.world?.sectors.length || 0, charted: [...state.charted], visited: [...state.visited], destination: state.destination ? { id: state.destination.id, name: state.destination.name, kind: state.destination.kind } : null, nearest: state.nearest ? { id: state.nearest.id, distance: distance(state.ship.position, state.nearest.position) } : null, reticleTarget: state.reticleTarget ? { id: state.reticleTarget.file.id, distance: state.reticleTarget.distance } : null, probe: state.probe ? { id: state.probe.id, position: { ...state.probe.position }, duration: state.probe.duration, elapsed: state.probe.elapsed } : null, fps: Math.round(state.fps), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, liveEvents: state.snapshot?.events.length || 0, viewerOpen: fileViewer.isOpen, openedFile: fileViewer.path }) });
+window.__DATA_DRIFT__ = window.__SPACE__; // Preserve the original diagnostics name.
+loadWorld(); setInterval(loadWorld, 5000); requestAnimationFrame(animate);
