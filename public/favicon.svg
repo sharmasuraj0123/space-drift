@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<style>@media(prefers-color-scheme:light){.tile{fill:#eef2ff}.mark{color:#080b18}}</style>
+<rect class="tile" width="100" height="100" rx="22" fill="#080b18"/>
+<g class="mark" color="#aab8ff" transform="translate(22 13.04) scale(.56)"><path fill="currentColor" d="M50 0A50 50 0 0 1 100 50V118A14 14 0 0 1 86 132A14 14 0 0 1 72 118V94.87A50 50 0 1 1 50 0ZM50 33A17 17 0 1 0 50 67A17 17 0 1 0 50 33Z"/></g></svg>

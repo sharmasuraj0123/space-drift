@@ -1,4 +1,5 @@
 import { formatBytes } from './model.js';
+import { createIcon, setIcon } from './icons.js';
 import { awaitWithSignal, createLocalPreviewSession } from './preview.js';
 
 const SERVER_SOURCE = Object.freeze({ kind: 'server' });
@@ -11,13 +12,16 @@ export function createFileViewer({ onClose = () => {}, getSource = () => SERVER_
   dialog.innerHTML = `
     <div class="viewer-header">
       <div class="viewer-identity"><div class="eyebrow">SPACE DRIFT / FILE VIEWER</div><h2 id="viewer-title"></h2><p id="viewer-path"></p></div>
-      <button class="viewer-close" aria-label="Close file and return to flight" title="Return to flight (Escape)">×</button>
+      <button class="viewer-close" aria-label="Close file and return to flight" title="Return to flight (Escape)"></button>
     </div>
-    <div class="viewer-toolbar"><span id="viewer-meta"></span><div class="viewer-actions"><button id="viewer-copy" type="button">Copy path ↗</button><button id="viewer-desktop" type="button" hidden>Open in desktop app ↗</button></div></div>
+    <div class="viewer-toolbar"><span id="viewer-meta"></span><div class="viewer-actions"><button id="viewer-copy" type="button">Copy path</button><button id="viewer-desktop" type="button" hidden>Open in desktop app</button></div></div>
     <div id="viewer-content" aria-busy="false"></div>
     <div class="viewer-footer"><span id="viewer-status" role="status" aria-live="polite">Opening file…</span><span><kbd>ESC</kbd> Back to flight</span></div>`;
   document.body.append(dialog);
   const find = (id) => dialog.querySelector(`#${id}`);
+  setIcon(dialog.querySelector('.viewer-close'), 'close');
+  find('viewer-copy').append(createIcon('copy'));
+  find('viewer-desktop').append(createIcon('external-link'));
   const content = find('viewer-content');
   let request, filePath = '', requestNumber = 0;
   let activeSource = null;
@@ -95,7 +99,7 @@ export function createFileViewer({ onClose = () => {}, getSource = () => SERVER_
       content.replaceChildren();
       content.dataset.kind = result.kind;
       find('viewer-desktop').hidden = source.kind !== 'server' || !result.desktopAction;
-      find('viewer-desktop').textContent = result.desktopAction === 'reveal' ? 'Show in Finder ↗' : 'Open in desktop app ↗';
+      find('viewer-desktop').replaceChildren(document.createTextNode(result.desktopAction === 'reveal' ? 'Show in Finder' : 'Open in desktop app'), createIcon('external-link'));
       const dateLabel = result.modifiedAt ? new Date(result.modifiedAt).toLocaleDateString() : 'Unknown modified date';
       find('viewer-meta').textContent = `${result.kind.toUpperCase()}  /  ${formatBytes(result.size)}  /  ${dateLabel}`;
       const mediaUrl = result.contentUrl;

@@ -103,14 +103,21 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   const root = await fixture(t);
   const publicDirectory = path.join(root, 'public');
   const vendorDirectory = path.join(root, 'vendor');
+  const addonDirectory = path.join(root, 'addons');
   await mkdir(publicDirectory);
   await mkdir(vendorDirectory);
+  await mkdir(path.join(addonDirectory, 'loaders'), { recursive: true });
+  await mkdir(path.join(addonDirectory, 'utils'));
   await writeFile(path.join(publicDirectory, 'index.html'), '<h1>Space Drift</h1>');
   await writeFile(path.join(root, 'private.txt'), 'must never be served');
   await symlink(path.join(root, 'private.txt'), path.join(publicDirectory, 'escape.txt'));
   await symlink(path.join(root, 'private.txt'), path.join(vendorDirectory, 'three.module.js'));
   await writeFile(path.join(vendorDirectory, 'three.core.js'), 'export const trusted = true;');
-  const server = createServer({ root, publicDirectory, vendorDirectory });
+  await writeFile(path.join(addonDirectory, 'loaders/GLTFLoader.js'), 'export class GLTFLoader {}');
+  await writeFile(path.join(addonDirectory, 'utils/SkeletonUtils.js'), 'export const clone = value => value;');
+  await symlink(path.join(root, 'private.txt'), path.join(addonDirectory, 'utils/BufferGeometryUtils.js'));
+  await writeFile(path.join(addonDirectory, 'utils/private.js'), 'must never be served');
+  const server = createServer({ root, publicDirectory, vendorDirectory, addonDirectory });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -131,6 +138,12 @@ test('HTTP world map exposes only metadata and static routes stay restricted', a
   assert.equal(escapedVendor.status, 403);
   assert.ok(!(await escapedVendor.text()).includes('must never be served'));
   assert.equal((await fetch(base + '/vendor/three.core.js')).status, 200);
+  assert.equal((await fetch(base + '/vendor/addons/loaders/GLTFLoader.js')).status, 200);
+  assert.equal((await fetch(base + '/vendor/addons/utils/SkeletonUtils.js')).status, 200);
+  const escapedAddon = await fetch(base + '/vendor/addons/utils/BufferGeometryUtils.js');
+  assert.equal(escapedAddon.status, 403);
+  assert.ok(!(await escapedAddon.text()).includes('must never be served'));
+  assert.equal((await fetch(base + '/vendor/addons/utils/private.js')).status, 404);
   assert.equal((await fetch(base + '/.env')).status, 404);
   assert.equal((await fetch(base + '/api/files')).status, 404);
   const rawGet = (requestPath, headers = {}) => new Promise((resolve, reject) => {

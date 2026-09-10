@@ -16,3 +16,8 @@
 .viewer-message{text-align:center;padding:35px;max-width:560px;font-size:13px;line-height:1.8;color:var(--muted)}.viewer-message h3{font-size:22px;font-weight:400;color:var(--ink);line-height:1.3;margin-top:0}.viewer-message p{margin-bottom:0}
 .viewer-footer{padding:14px 28px;display:flex;gap:20px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);font-size:10px;line-height:1.6;color:var(--muted)}.viewer-footer>span:last-child{display:flex;align-items:center;gap:8px;white-space:nowrap}.viewer-footer kbd{font-size:8px;height:19px}
 @media(max-width:700px){#file-viewer{width:calc(100vw - 20px);height:92dvh;max-height:92dvh;border-radius:9px}.viewer-header{padding:20px 18px 16px;gap:12px}.viewer-identity h2{font-size:21px}.viewer-identity .eyebrow{font-size:8px}#viewer-path{font-size:9px}.viewer-toolbar{padding:11px 18px;font-size:8px;gap:10px}.viewer-actions{gap:10px;flex-wrap:wrap;justify-content:flex-end}#viewer-copy,#viewer-desktop{font-size:9px}#viewer-content pre{padding:21px 18px;font-size:11px;line-height:1.8}.viewer-footer{padding:12px 18px;gap:12px;font-size:9px}.viewer-footer>span:last-child{font-size:0;gap:0}.viewer-footer kbd{font-size:8px}.viewer-message{padding:24px;font-size:12px}.viewer-message h3{font-size:20px}}
+
+/* File actions use the same stroke and spacing as flight controls. */
+.viewer-close .icon{width:19px;height:19px}
+#viewer-copy,#viewer-desktop{display:inline-flex;align-items:center;gap:6px}
+.viewer-actions .icon{width:13px;height:13px}

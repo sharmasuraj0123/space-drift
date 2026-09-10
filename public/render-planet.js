@@ -1,23 +1,52 @@
 import { JITTER_K, FLASH_SECONDS, L_MIN, ELEMENT_COLORS, OPEN_RANGE } from './constants.js';
 import { emissionColor, bodyColor, luminosity, emits, remainingExcitation, skyStars, rgb } from './light.js';
 import { createLightRenderer } from './render-light.js';
+import { atomModelName } from './model-assets.js';
 import { colorOf, vector, instanceEmission, disposeGroup, circle, createFieldSheet, createStars, createLabels } from './render-common.js';
 const hash = (text) => { let value = 2166136261; for (const c of String(text)) value = Math.imul(value ^ c.charCodeAt(0), 16777619); return (value >>> 0) / 4294967296; };
 const temperature = (m, now) => remainingExcitation(m, now) / Math.max(1, m.molecularMass || m.restMass || 0);
 
-export function createPlanetRenderer({ THREE, scene }) {
+export function createPlanetRenderer({ THREE, scene, assets }) {
+  if (!assets) throw new Error('The surface renderer requires the Space Drift model pack.');
   const group = new THREE.Group(); group.name = 'planet-layer'; scene.add(group);
   const geometryGroup = new THREE.Group(); group.add(geometryGroup);
   const lighting = createLightRenderer({ THREE, group, excludeRoot: true });
   const dummy = new THREE.Object3D(), tint = new THREE.Color();
-  let world, sheet, labels, focusLabels, focusSignature = '', atomsMesh, bondsMesh, moleculeLines, ghostsMesh, sky, skySignature = '', cachedSpaceWorld = null;
+  let world, sheet, labels, focusLabels, focusSignature = '', moleculeMesh, bondsMesh, moleculeLines, sky, skySignature = '', cachedSpaceWorld = null;
+  let atomBatches = [], ghostBatches = [];
   let shells = [], previousAtoms = new Map(), ghosts = [], hexCells = [], hexGeometry, lastHeat = 0, lastOverlay = '', suspended = false;
+  function createAtomBatches(atoms, cooling = false) {
+    const families = new Map();
+    for (const atom of atoms) {
+      const name = atomModelName(atom.element);
+      if (!families.has(name)) families.set(name, []);
+      families.get(name).push(atom);
+    }
+    return [...families].map(([name, members]) => {
+      const geometry = assets.geometry(name);
+      const material = cooling
+        ? new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .48, depthWrite: false })
+        : new THREE.MeshStandardMaterial({ roughness: .74, metalness: .22, vertexColors: true, emissive: 0xffffff, emissiveIntensity: 1 });
+      if (!cooling) {
+        geometry.setAttribute('emission', new THREE.InstancedBufferAttribute(new Float32Array(members.length), 1));
+        instanceEmission(material);
+      }
+      const mesh = new THREE.InstancedMesh(geometry, material, members.length);
+      mesh.name = `${cooling ? 'cooling' : 'files'}:${name}`;
+      mesh.userData.assetName = name;
+      mesh.userData.atomIds = members.map(atom => atom.id);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      geometryGroup.add(mesh);
+      return { mesh, members };
+    });
+  }
   function setWorld(next) {
     if (world && world.planetId !== next.planetId) { previousAtoms = new Map(); ghosts = []; lighting.reset(); }
     const oldGrid = sheet?.grid, now = next.now || Date.now();
     const atomIds = new Set(next.atoms.map((atom) => atom.id));
     for (const atom of previousAtoms.values()) if (!atomIds.has(atom.id)) ghosts.push({ ...atom, removedAt: now });
-    ghosts = ghosts.filter((atom) => atom.removedAt + FLASH_SECONDS * 1000 > now).slice(-2500);
+    ghosts = ghosts.filter((atom) => !atomIds.has(atom.id) && atom.removedAt + FLASH_SECONDS * 1000 > now).slice(-2500);
     previousAtoms = new Map(next.atoms.map((atom) => [atom.id, atom]));
     world = next;
     if (suspended) { lighting.setBodies(world.molecules.filter((m) => m.id !== '.'), now, world.atoms); return; }
@@ -29,14 +58,31 @@ export function createPlanetRenderer({ THREE, scene }) {
     const rim = circle(THREE, radius, 0x68e4ef, false, 150); rim.position.y = .3; rim.material.opacity = .26; geometryGroup.add(rim);
     const children = world.molecules.filter((m) => m.id !== '.').sort((a, b) => (a.clusterRadius || 0) - (b.clusterRadius || 0));
     const labelsData = [];
-    for (const m of children) {
+    moleculeMesh = null;
+    if (children.length) {
+      const geometry = assets.geometry('molecule');
+      geometry.setAttribute('emission', new THREE.InstancedBufferAttribute(new Float32Array(children.length), 1));
+      const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, metalness: .3, emissive: 0xffffff, emissiveIntensity: 1, transparent: true, opacity: .48, depthWrite: false });
+      instanceEmission(material);
+      moleculeMesh = new THREE.InstancedMesh(geometry, material, children.length);
+      moleculeMesh.name = 'folders:molecule';
+      moleculeMesh.userData.assetName = 'molecule';
+      geometryGroup.add(moleculeMesh);
+    }
+    for (const [index, m] of children.entries()) {
       const r = m.clusterRadius || 12, color = m.color || bodyColor(m, world.atoms.filter((a) => a.moleculeId === m.id));
-      const shellMaterial = new THREE.MeshBasicMaterial({ color: colorOf(THREE, color), transparent: true, opacity: .035 + (m.temperature || 0) * .06, side: THREE.DoubleSide, depthWrite: false });
-      const shell = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), shellMaterial); shell.position.copy(vector(THREE, m.center)); shell.scale.y = .35; geometryGroup.add(shell);
+      // The centered open cage occupies the old shell's horizontal radius and height.
+      dummy.position.set(m.center.x, m.center.y + r * .175, m.center.z);
+      dummy.rotation.set(0, hash(m.id) * Math.PI * 2, 0);
+      dummy.scale.set(r, r * .175, r);
+      dummy.updateMatrix();
+      moleculeMesh.setMatrixAt(index, dummy.matrix);
+      moleculeMesh.setColorAt(index, colorOf(THREE, color));
       const ring = circle(THREE, r, colorOf(THREE, color)); ring.position.copy(vector(THREE, m.center)); ring.position.y = .6; ring.material.opacity = .21; geometryGroup.add(ring);
       if (m.repo) { for (let i = 0; i < (m.worktree ? 2 : 1); i++) { const marker = circle(THREE, r + 2.5 + i * 2, 0xffad9b, true); marker.position.copy(ring.position); marker.material.opacity = .6; geometryGroup.add(marker); } }
-      shells.push({ m, shell, ring }); labelsData.push({ text: `${m.name || m.path}${m.repo ? m.worktree ? ' ◉ worktree' : ' ◉ repo' : ''}`, position: { x: m.center.x, y: Math.min(30, r * .35) + 8, z: m.center.z } });
+      shells.push({ m, ring, index }); labelsData.push({ text: `${m.name || m.path}${m.repo ? m.worktree ? ' ◉ worktree' : ' ◉ repo' : ''}`, position: { x: m.center.x, y: Math.min(30, r * .35) + 8, z: m.center.z } });
     }
+    if (moleculeMesh) { moleculeMesh.instanceMatrix.needsUpdate = true; moleculeMesh.instanceColor.needsUpdate = true; }
     const hexPositions = [], hexColors = [], hexSize = Math.max(5, radius / 28), rowStep = hexSize * 1.5, colStep = hexSize * Math.sqrt(3);
     for (let row = -20; row <= 20; row++) for (let col = -20; col <= 20; col++) {
       const x = (col + (row & 1) * .5) * colStep, z = row * rowStep;
@@ -47,13 +93,8 @@ export function createPlanetRenderer({ THREE, scene }) {
     }
     hexGeometry = new THREE.BufferGeometry(); hexGeometry.setAttribute('position', new THREE.Float32BufferAttribute(hexPositions, 3)); hexGeometry.setAttribute('color', new THREE.Float32BufferAttribute(hexColors, 3));
     const hex = new THREE.LineSegments(hexGeometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: .3, depthWrite: false })); geometryGroup.add(hex);
-    const atomGeometry = new THREE.OctahedronGeometry(1, 0);
-    atomGeometry.setAttribute('emission', new THREE.InstancedBufferAttribute(new Float32Array(world.atoms.length), 1));
-    const atomMaterial = new THREE.MeshStandardMaterial({ roughness: .46, metalness: .18, vertexColors: true, emissive: 0xffffff, emissiveIntensity: 1 });
-    // Instance color supplies spectra to diffuse and emissive channels.
-    instanceEmission(atomMaterial);
-    atomsMesh = new THREE.InstancedMesh(atomGeometry, atomMaterial, world.atoms.length); atomsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); geometryGroup.add(atomsMesh);
-    if (ghosts.length) { ghostsMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .65 }), ghosts.length); geometryGroup.add(ghostsMesh); } else ghostsMesh = null;
+    atomBatches = createAtomBatches(world.atoms);
+    ghostBatches = createAtomBatches(ghosts, true);
     const atomMap = new Map(world.atoms.map((atom) => [atom.id, atom]));
     function bondGeometry(records, molecular = false) {
       const positions = [], colors = [];
@@ -89,23 +130,55 @@ export function createPlanetRenderer({ THREE, scene }) {
     sheet.update(dt, overlay === 'bonds' || overlay === 'temperature' ? 'off' : overlay); sheet.group.visible = fieldEnabled || overlay !== 'off';
     const telemetry = lighting.update({ now, ship, bodies: world.molecules.filter((m) => m.id !== '.') });
     const moleculeMap = new Map(world.molecules.map((m) => [m.id, m])), closeAtoms = []; let targetAtom;
-    world.atoms.forEach((atom, i) => {
-      if (atom.id === targetId) targetAtom = atom;
-      if (ship) { const d = (atom.position.x - ship.position.x) ** 2 + (atom.position.y - ship.position.y) ** 2 + (atom.position.z - ship.position.z) ** 2; if (d <= OPEN_RANGE ** 2) closeAtoms.push({ atom, d }); }
-      const m = moleculeMap.get(atom.moleculeId), t = m ? temperature(m, now) : 0, seed = hash(atom.id) * 100, vibration = JITTER_K * t, pulse = lighting.flash(atom.id, now);
-      dummy.position.set(atom.position.x + Math.sin(now * .012 + seed) * vibration, atom.position.y + Math.sin(now * .014 + seed * 3) * vibration * .6, atom.position.z + Math.cos(now * .011 + seed * 2) * vibration);
-      dummy.rotation.set(0, seed, .12); const r = atom.radius || .9; dummy.scale.set(r * (1 + pulse * .13), r * 1.5 * (1 + pulse * .13), r * (1 + pulse * .13)); dummy.updateMatrix(); atomsMesh.setMatrixAt(i, dummy.matrix);
-      const c = emissionColor(atom, now), active = emits(atom, now), strength = active ? .85 : .52;
-      atomsMesh.geometry.attributes.emission.setX(i, (active ? .6 + Math.min(1, Math.log2(1 + luminosity(atom, now) / L_MIN) * .18) : 0) + pulse * .8);
-      tint.setRGB(c[0], c[1], c[2]).multiplyScalar(strength + pulse * .55); atomsMesh.setColorAt(i, tint);
-    });
-    atomsMesh.instanceMatrix.needsUpdate = true; atomsMesh.geometry.attributes.emission.needsUpdate = true; if (atomsMesh.instanceColor) atomsMesh.instanceColor.needsUpdate = true;
-    if (ghostsMesh) { ghosts = ghosts.filter((atom) => now < atom.removedAt + FLASH_SECONDS * 1000); ghostsMesh.count = ghosts.length; ghostsMesh.visible = ghosts.length > 0; ghosts.forEach((atom, i) => { const fade = 1 - (now - atom.removedAt) / (FLASH_SECONDS * 1000); dummy.position.copy(vector(THREE, atom.position)); dummy.rotation.set(0, hash(atom.id) * 100, .12); dummy.scale.set(atom.radius, atom.radius * 1.5, atom.radius); dummy.updateMatrix(); ghostsMesh.setMatrixAt(i, dummy.matrix); tint.copy(colorOf(THREE, rgb(ELEMENT_COLORS[atom.element] || ELEMENT_COLORS.other))).multiplyScalar(fade); ghostsMesh.setColorAt(i, tint); }); ghostsMesh.instanceMatrix.needsUpdate = true; if (ghostsMesh.instanceColor) ghostsMesh.instanceColor.needsUpdate = true; }
+    for (const { mesh, members } of atomBatches) {
+      members.forEach((atom, i) => {
+        if (atom.id === targetId) targetAtom = atom;
+        if (ship) { const d = (atom.position.x - ship.position.x) ** 2 + (atom.position.y - ship.position.y) ** 2 + (atom.position.z - ship.position.z) ** 2; if (d <= OPEN_RANGE ** 2) closeAtoms.push({ atom, d }); }
+        const m = moleculeMap.get(atom.moleculeId), t = m ? temperature(m, now) : 0, seed = hash(atom.id) * 100, pulse = lighting.flash(atom.id, now);
+        // Rotation conveys thermal vibration without moving matter outside its collider.
+        dummy.position.copy(vector(THREE, atom.position));
+        dummy.rotation.set(0, seed + Math.sin(now * .012 + seed) * JITTER_K * t * .18, 0);
+        const r = atom.radius || .9;
+        dummy.scale.set(r, r * 1.5, r);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        const base = rgb(ELEMENT_COLORS[atom.element] || ELEMENT_COLORS.other), excited = emissionColor(atom, now), active = emits(atom, now);
+        mesh.geometry.attributes.emission.setX(i, Math.min(.5, (active ? Math.min(.25, .07 + Math.log2(1 + luminosity(atom, now) / L_MIN) * .04) : 0) + pulse * .5));
+        tint.setRGB(base[0] * .7 + excited[0] * .3, base[1] * .7 + excited[1] * .3, base[2] * .7 + excited[2] * .3).multiplyScalar(active ? .94 : .78);
+        mesh.setColorAt(i, tint);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.geometry.attributes.emission.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+    for (const { mesh, members } of ghostBatches) {
+      const remaining = members.filter(atom => now < atom.removedAt + FLASH_SECONDS * 1000);
+      mesh.count = remaining.length;
+      mesh.visible = remaining.length > 0;
+      remaining.forEach((atom, i) => {
+        const fade = 1 - (now - atom.removedAt) / (FLASH_SECONDS * 1000);
+        dummy.position.copy(vector(THREE, atom.position));
+        dummy.rotation.set(0, hash(atom.id) * 100, 0);
+        dummy.scale.set(atom.radius, atom.radius * 1.5, atom.radius);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        tint.copy(colorOf(THREE, rgb(ELEMENT_COLORS[atom.element] || ELEMENT_COLORS.other))).multiplyScalar(fade);
+        mesh.setColorAt(i, tint);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
     if (now - lastHeat > 200 || overlay !== lastOverlay) {
       const attribute = hexGeometry.attributes.color;
       for (const cell of hexCells) { const t = cell.molecule ? temperature(cell.molecule, now) : 0; for (let i = 0; i < 12; i++) attribute.setXYZ(cell.start + i, .14 + t * .7, .24 + t * .08, .38 + t * .14); }
       attribute.needsUpdate = true; lastHeat = now; lastOverlay = overlay;
-      for (const { m, shell, ring } of shells) { const t = temperature(m, now); shell.material.opacity = .025 + t * .12 + (overlay === 'temperature' ? .05 : 0); ring.material.opacity = .18 + t * .55; }
+      for (const { m, ring, index } of shells) {
+        const t = temperature(m, now);
+        moleculeMesh.geometry.attributes.emission.setX(index, t * (overlay === 'temperature' ? .25 : .12));
+        moleculeMesh.setColorAt(index, colorOf(THREE, m.color || bodyColor(m)).multiplyScalar(.55 + t * .35));
+        ring.material.opacity = .18 + t * .55;
+      }
+      if (moleculeMesh) { moleculeMesh.geometry.attributes.emission.needsUpdate = true; moleculeMesh.instanceColor.needsUpdate = true; }
     }
     bondsMesh.material.opacity = overlay === 'bonds' ? .92 : overlay === 'light' ? .6 : .28; moleculeLines.material.opacity = overlay === 'bonds' ? .9 : .4;
     closeAtoms.sort((a, b) => a.d - b.d);
@@ -117,7 +190,7 @@ export function createPlanetRenderer({ THREE, scene }) {
     if (camera) { labels.update(camera, group.visible); focusLabels?.update(camera, group.visible); } updateSky(spaceWorld, now, ship);
     return { ...telemetry, overlayRange: sheet.range, drawables: geometryGroup.children.length };
   }
-  function suspend() { if (suspended) return; suspended = true; labels?.dispose(); labels = null; focusLabels?.dispose(); focusLabels = null; focusSignature = ''; disposeGroup(geometryGroup); sheet = null; atomsMesh = null; ghostsMesh = null; sky = null; shells = []; hexCells = []; }
+  function suspend() { if (suspended) return; suspended = true; labels?.dispose(); labels = null; focusLabels?.dispose(); focusLabels = null; focusSignature = ''; disposeGroup(geometryGroup); sheet = null; atomBatches = []; ghostBatches = []; moleculeMesh = null; sky = null; shells = []; hexCells = []; }
   function reset() { suspend(); world = null; previousAtoms = new Map(); ghosts = []; lighting.reset(); group.visible = false; }
   return { group, setWorld, update, suspend, reset, setVisible(value) { group.visible = value; if (!value) suspend(); else if (suspended && world) { suspended = false; setWorld(world); } }, dispose() { labels?.dispose(); focusLabels?.dispose(); disposeGroup(group); scene.remove(group); world = null; } };
 }

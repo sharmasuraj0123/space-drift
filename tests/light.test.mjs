@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { HALF_LIFE_MS, LAMBDA_DAY, L_MIN, ELEMENT_COLORS } from '../public/constants.js';
 import { luminosity, emits, emissionColor, bodyColor, irradiance, illumination, skyStars, flashesFrom, coolingFrom, rgb } from '../public/light.js';
 import * as THREE from 'three';
+import { readFile } from 'node:fs/promises';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createModelLibrary } from '../public/model-assets.js';
 import { createLightRenderer } from '../public/render-light.js';
 import { createSpaceRenderer } from '../public/render-space.js';
 import { createPlanetRenderer } from '../public/render-planet.js';
@@ -65,13 +68,16 @@ test('render lights enforce the budget and reset baselines between sources', () 
   lighting.reset(); lighting.setBodies([atom('created', 10000)], now + 300);
   assert.deepEqual(lighting.update({ now: now + 300 }).flashes, []);
 });
-test('inactive layers release geometry, rebuild once, and dispose cleanly', () => {
+test('inactive layers release geometry, rebuild once, and dispose cleanly', async () => {
+  const bytes = await readFile(new URL('../public/assets/models/space-drift.glb', import.meta.url));
+  const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  const assets = createModelLibrary(gltf.scene);
   const grid = () => ({ resolution: 4, bounds: { minX: -100, maxX: 100, minZ: -100, maxZ: 100 }, heights: new Float32Array(16), curvature: new Float32Array(16) });
   const field = { sampleGrid: grid };
   const body = atom('body', 10000, { name: 'Body', kind: 'planet', center: { x: 0, y: 0, z: 0 }, radius: 10, landingRadius: 20, horizonRadius: 2, illumination: .04 });
   const space = { layer: 'space', bodies: [body], bounds: 100, field, now };
   const surface = { layer: 'planet', planetId: 'body', atoms: [atom('a', 10000, { position: { x: 0, y: 2, z: 0 }, radius: 1, moleculeId: '.' })], molecules: [], bonds: [], moleculeBonds: [], field, surfaceRadius: 40, floor: 2, now };
-  const scene = new THREE.Scene(), a = createSpaceRenderer({ THREE, scene }), b = createPlanetRenderer({ THREE, scene });
+  const scene = new THREE.Scene(), a = createSpaceRenderer({ THREE, scene, assets }), b = createPlanetRenderer({ THREE, scene, assets });
   for (const [renderer, world] of [[a, space], [b, surface]]) {
     renderer.setWorld(world); renderer.update({ world, spaceWorld: space, now, dt: 1 / 60 });
     const count = renderer.group.children[0].children.length; assert.ok(count > 0);
@@ -83,4 +89,5 @@ test('inactive layers release geometry, rebuild once, and dispose cleanly', () =
     renderer.dispose();
   }
   assert.equal(scene.children.length, 0);
+  assets.dispose();
 });

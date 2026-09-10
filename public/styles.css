@@ -91,11 +91,6 @@
 .scan-button:hover{background:rgba(170,184,255,.18);border-color:var(--accent)}
 .scan-button kbd{font-size:8px;height:18px;min-width:18px}
 .reticle{position:fixed;left:50%;top:50%;width:23px;height:23px;transform:translate(-50%,-50%);opacity:.45;pointer-events:none}
-.reticle i{width:5px;height:5px;position:absolute;border-color:var(--accent);border-style:solid}
-.reticle i:nth-child(1){left:0;top:0;border-width:1px 0 0 1px}
-.reticle i:nth-child(2){right:0;top:0;border-width:1px 1px 0 0}
-.reticle i:nth-child(3){left:0;bottom:0;border-width:0 0 1px 1px}
-.reticle i:nth-child(4){right:0;bottom:0;border-width:0 1px 1px 0}
 .destination{position:fixed;right:36px;bottom:85px;display:grid;grid-template-columns:1fr auto;gap:8px 20px;max-width:260px}
 .destination strong{font-size:13px;font-weight:400;grid-column:1;overflow:hidden;text-overflow:ellipsis}
 .destination button{grid-column:2;grid-row:1 / 3;align-self:center;width:26px;height:26px;border:1px solid var(--line);border-radius:50%;background:none;color:var(--soft)}
@@ -103,10 +98,8 @@
 .destination .eyebrow{font-size:7px}
 #labels{position:fixed;inset:0;pointer-events:none}
 .sector-label{position:absolute;white-space:nowrap;color:var(--soft);font:10px monospace;letter-spacing:1.5px;transform:translate(-50%,-100%);text-shadow:0 2px 8px #050715}
-.sector-label:before{content:'◇';margin-right:7px;color:var(--sector-color)}
 .sector-label small{font:7px monospace;color:var(--subtle);margin-left:8px;letter-spacing:.8px}dialog{border:1px solid #3c4b77;border-radius:9px;background:rgba(13,18,38,.98);color:var(--ink);width:min(530px,calc(100% - 28px));padding:28px;box-shadow:0 30px 140px #000b;max-height:82dvh}dialog::backdrop{background:#040613b8;backdrop-filter:blur(5px)}
 .sector-label[data-kind=atom]{padding:5px 7px;background:#080b18c9;border:1px solid #aab8ff25;border-radius:4px;font-size:9px;letter-spacing:.2px;max-width:min(280px,65vw);overflow:hidden;text-overflow:ellipsis}
-.sector-label[data-kind=atom]:before{content:'·';font-size:15px;line-height:8px}
 .dialog-top{display:flex;justify-content:space-between;align-items:flex-start}
 .dialog-top h2{font-size:32px;font-weight:400;letter-spacing:-1.3px;margin:14px 0}
 .close-dialog{background:none;color:var(--soft);font-size:26px;padding:0 2px}dialog>p{font-size:12px;color:var(--soft);line-height:1.7}
@@ -275,10 +268,8 @@
 .overlay-card[data-mode=energy] .overlay-scale,.overlay-card[data-mode=temperature] .overlay-scale{background:linear-gradient(90deg,#192337,#c4a5ff,#ffad9b)}
 .overlay-card[data-mode=light] .overlay-scale{background:linear-gradient(90deg,#080b18,#68e4ef,#eef2ff)}
 .reticle[data-locked=true]{opacity:1;filter:drop-shadow(0 0 6px #68e4ef80)}
-.reticle[data-locked=true] i{border-color:var(--cyan)}
 #reticle-label{position:absolute;left:50%;top:-22px;transform:translateX(-50%);font:8px monospace;white-space:nowrap;color:var(--cyan);max-width:min(320px,70vw);overflow:hidden;text-overflow:ellipsis}
 .reticle.fired{opacity:1;transform:translate(-50%,-50%) scale(1.35);filter:drop-shadow(0 0 9px #ffad9baa)}
-.reticle.fired i{border-color:var(--coral)}
 #layer-transition{position:fixed;inset:0;background:#080b18;opacity:0;pointer-events:none;z-index:18;will-change:opacity}
 .atlas-mode,.atlas-route-actions,.tour-controls{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}
 .atlas-mode button,.atlas-route-actions button,.tour-controls button,.atlas-row button{padding:8px 11px;background:#17213b;color:var(--soft);border:1px solid var(--line);border-radius:4px;font-size:10px}
@@ -368,3 +359,38 @@ header .folder-button{margin-left:0;white-space:nowrap}
 }
 @media(max-width:360px){header{padding-inline:12px;column-gap:6px}header .brand{font-size:11px;letter-spacing:1.5px;gap:6px}header .brand svg{width:17px;height:23px}header .folder-button{font-size:8px;padding:7px}}
 #intro:not([hidden]) ~ .layer-prompt{display:none}
+
+/* One optical family for every interface icon; all controls keep their text names. */
+.icon{display:inline-block;width:18px;height:18px;flex:none;vertical-align:middle;color:inherit;pointer-events:none}
+.icon-button,.close-dialog,.destination button{display:grid;place-items:center;padding:0}
+.icon-button .icon{width:16px;height:16px}
+.close-dialog{width:30px;height:30px;border:1px solid transparent;border-radius:50%}
+.close-dialog:hover{background:rgba(170,184,255,.08)}
+.close-dialog .icon,.destination .icon{width:18px;height:18px}
+.primary .icon{width:20px;height:20px}
+.text-button>.icon{width:14px;height:14px}
+.eyebrow>.icon,.coordinates>.icon{width:15px;height:15px;color:var(--accent)}
+.product-by>.icon{width:12px;height:12px;margin-left:3px;color:var(--accent)}
+.privacy-note>.icon{width:12px;height:12px;color:var(--cyan)}
+.activity>.activity-symbol{width:31px;height:31px;color:var(--cyan)}
+.map-button>.icon{width:21px;height:21px;color:var(--accent)}
+.search>.icon{width:18px;height:18px}
+.tour-controls button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.tour-controls .icon{width:15px;height:15px}
+#constants-button>.icon{width:17px;height:17px}
+.reticle{color:var(--accent)}
+.reticle>.icon{display:block;width:100%;height:100%}
+.reticle[data-locked=true]{color:var(--cyan)}
+.reticle.fired{color:var(--coral)}
+.sector-label:before{content:"";display:inline-block;width:7px;height:7px;border:1.4px solid var(--sector-color);transform:rotate(45deg);vertical-align:1px;margin-right:9px}
+.sector-label[data-kind=atom]:before{width:4px;height:4px;border:0;background:var(--sector-color);border-radius:50%;transform:none;vertical-align:2px}
+.touch-controls button{position:relative;display:grid;place-items:center;padding:0}
+.touch-controls .icon{width:19px;height:19px}
+.touch-key{position:absolute;right:3px;bottom:2px;font:6px/1 monospace;color:var(--muted)}
+.touch-controls button:has(.touch-key)>.icon{transform:translate(-2px,-1px);width:17px;height:17px}
+
+/* Readability over the live Blender model preview before connecting a folder. */
+.welcome-shade{display:none;position:fixed;inset:var(--header-height) 0 58px;pointer-events:none;background:linear-gradient(90deg,#080b18 0%,rgba(8,11,24,.72) 24%,transparent 49%)}
+body:has(#intro:not([hidden])):has(#launch[hidden]) .welcome-shade{display:block}
+body:has(#intro:not([hidden])):has(#launch[hidden]) .instrument-stack{visibility:hidden}
+@media(max-width:700px){.welcome-shade{background:linear-gradient(90deg,#080b18,rgba(8,11,24,.8) 44%,rgba(8,11,24,.5))}}

@@ -26,5 +26,10 @@ await mkdir(vendor, { recursive: true });
 for (const filename of ['three.module.js', 'three.core.js']) {
   await copyFile(path.join(root, 'node_modules', 'three', 'build', filename), path.join(vendor, filename));
 }
+for (const filename of ['loaders/GLTFLoader.js', 'utils/BufferGeometryUtils.js', 'utils/SkeletonUtils.js']) {
+  const destination = path.join(vendor, 'addons', filename);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await copyFile(path.join(root, 'node_modules/three/examples/jsm', filename), destination);
+}
 await copyFile(path.join(root, 'node_modules', 'three', 'LICENSE'), path.join(vendor, 'three.LICENSE.txt'));
 console.log('Space Drift static build ready in dist/.');
