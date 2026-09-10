@@ -13,7 +13,9 @@ dist
 server.mjs
 lib
 tests
-assets
+# Editable Blender sources and screenshots live at the repository root.
+# Keep public/assets, which contains the models and images the browser loads.
+/assets/
 docs
 memory
 README.md

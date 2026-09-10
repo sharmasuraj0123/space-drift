@@ -1,9 +1,21 @@
-import { copyFile, mkdir, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, 'dist');
+
+// Deployment upload filters run before this script. Never publish a successful
+// build when they have removed the models or images required by the browser.
+for (const asset of ['assets/models/space-drift.glb', 'assets/social-card.png', 'assets/orbital-scene.webp']) {
+  const info = await stat(path.join(root, 'public', asset)).catch(error => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!info?.isFile() || info.size === 0) {
+    throw new Error(`Missing required public asset: public/${asset}. Check .vercelignore; public/assets must be included in the deployment.`);
+  }
+}
 
 async function copyPublic(directory, destination) {
   await mkdir(destination, { recursive: true });
