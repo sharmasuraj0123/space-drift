@@ -60,7 +60,7 @@ vercel link
 vercel deploy
 ```
 
-Check the preview's folder selection, flight, and E file opening before promoting or deploying production. `.vercelignore` excludes local project metadata, dependencies, generated output, environment files, and the optional Node backend from deployment uploads. The build publishes only browser assets; selected folders never enter the build or deployment.
+Check the preview's folder selection, flight, and E file opening before promoting or deploying production. `.vercelignore` excludes local project metadata, dependencies, generated output, environment files, and the optional Node backend from deployment uploads. Its `/assets/` rule excludes only the root source-art directory; `public/assets/` must remain included because it contains the required GLB and share images. The build fails if those files are absent or empty. The build publishes only browser assets; selected folders never enter the build or deployment.
 
 ## Optional local server
 

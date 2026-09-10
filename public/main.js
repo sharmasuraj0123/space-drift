@@ -2711,7 +2711,9 @@ requestAnimationFrame(animate);
 }
 startGame().catch((error) => {
   const panel = document.getElementById("error");
-  if (panel.hidden) document.getElementById("error-message").textContent = "The 3D world could not load. Check your connection and try again.";
+  if (panel.hidden) document.getElementById("error-message").textContent = error.response?.status === 404
+    ? "The game’s 3D assets are unavailable. Please try again later."
+    : "The 3D world could not load. Reload the page or try again later.";
   panel.hidden = false;
   document.getElementById("retry").addEventListener("click", () => location.reload());
   console.error("Space Drift startup:", error);

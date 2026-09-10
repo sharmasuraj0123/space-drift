@@ -21,6 +21,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "ignore": "^7.0.9",
     "playwright": "^1.63.0",
     "sharp": "^0.35.4"
   }
