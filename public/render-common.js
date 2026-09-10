@@ -5,9 +5,10 @@ export function colorOf(THREE, value) { const c = rgb(value); return new THREE.C
 export function instanceEmission(material) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = 'attribute float emission; varying float instanceEmission;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ninstanceEmission = emission;');
-    shader.fragmentShader = 'varying float instanceEmission;\n' + shader.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n#ifdef USE_INSTANCING_COLOR\ntotalEmissiveRadiance *= vColor * instanceEmission;\n#endif');
+    // Three exposes combined vertex/instance tint under USE_COLOR in the fragment stage.
+    shader.fragmentShader = 'varying float instanceEmission;\n' + shader.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= instanceEmission;\n#if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )\ntotalEmissiveRadiance *= vColor.rgb;\n#endif');
   };
-  material.customProgramCacheKey = () => 'space-drift-instance-emission';
+  material.customProgramCacheKey = () => 'space-drift-instance-emission-v2';
 }
 export function disposeGroup(group) {
   const geometries = new Set(), materials = new Set(), textures = new Set();
@@ -80,7 +81,7 @@ export function createFieldSheet(THREE, world, { previous = null, surface = fals
       if (strengths) { const weight = Math.sqrt(strengths[i] / Math.max(1e-20, peak)); base[0] *= .18 + weight * .82; base[1] *= .18 + weight * .82; base[2] *= .18 + weight * .82; }
       colors.set(base, i * 3);
     }
-    geometry.attributes.color.needsUpdate = true; contours.visible = overlay === 'curvature' || overlay === 'off'; wire.material.opacity = overlay === 'off' ? .28 : .52; fill.material.opacity = overlay === 'off' ? .04 : .14;
+    geometry.attributes.color.needsUpdate = true; contours.visible = overlay === 'curvature'; wire.material.opacity = overlay === 'off' ? .065 : .4; fill.material.opacity = overlay === 'off' ? .012 : .12;
   }
   function update(dt, overlay = 'off') {
     if (Math.abs((world.now || Date.now()) - lastSample) >= 500) refresh();

@@ -1,5 +1,8 @@
 import * as THREE from "/vendor/three.module.js";
 import * as C from "./constants.js";
+import { loadModelAssets } from "./model-assets.js";
+import { createShowcase } from "./render-showcase.js";
+import { setIcon } from "./icons.js";
 import {
   stepShip,
   formatBytes,
@@ -56,6 +59,7 @@ import { createServerSource } from "./server-source.js";
 import { createSpaceRenderer } from "./render-space.js";
 import { createPlanetRenderer } from "./render-planet.js";
 
+async function startGame() {
 const $ = (id) => document.getElementById(id),
   v = (p) => new THREE.Vector3(p.x, p.y, p.z);
 const clamp = THREE.MathUtils.clamp,
@@ -154,7 +158,7 @@ try {
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
+  renderer.toneMappingExposure = 1.0;
   $("scene").append(renderer.domElement);
 } catch (error) {
   $("error").hidden = false;
@@ -162,8 +166,23 @@ try {
     "This game needs WebGL. Enable hardware acceleration and reload.";
   throw error;
 }
-const spaceRenderer = createSpaceRenderer({ THREE, scene }),
-  planetRenderer = createPlanetRenderer({ THREE, scene });
+for (const id of ["choose-folder", "folder-button", "snapshot-picker"]) $(id).disabled = true;
+$("folder-note").textContent = "Preparing your ship…";
+const assets = await loadModelAssets();
+for (const id of ["choose-folder", "folder-button", "snapshot-picker"]) $(id).disabled = false;
+$("folder-note").textContent = "Your files stay on this device. Nothing is uploaded.";
+// Studio fill reveals the authored surfaces; data excitation remains separate.
+scene.add(new THREE.HemisphereLight(0xc7d6ff, 0x11182b, .9));
+const keyLight = new THREE.DirectionalLight(0xe6edff, 2.5);
+keyLight.position.set(90, 140, 60);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x7598ff, 1.15);
+rimLight.position.set(-90, 70, -120);
+scene.add(rimLight);
+const spaceRenderer = createSpaceRenderer({ THREE, scene, assets }),
+  planetRenderer = createPlanetRenderer({ THREE, scene, assets });
+const showcase = createShowcase({ THREE, scene, assets });
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 function glowTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 64;
@@ -202,74 +221,26 @@ function points(positions, colors, size, opacity = 1) {
 }
 
 function createShip() {
-  const group = new THREE.Group();
-  const ivory = new THREE.MeshStandardMaterial({
-    color: 0xf0f2ff,
-    metalness: 0.35,
-    roughness: 0.38,
-    emissive: 0x4d526d,
-    emissiveIntensity: 0.6,
+  const group = assets.instantiate('explorer');
+  group.updateMatrixWorld(true);
+  const exhausts = ['thruster_left', 'thruster_right'].map((name, index) => {
+    const node = group.getObjectByName(name);
+    return node ? group.worldToLocal(node.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(index ? 1.4 : -1.4, -.1, 3);
   });
-  const dark = new THREE.MeshStandardMaterial({
-    color: 0x202c55,
-    metalness: 0.5,
-    roughness: 0.27,
-  });
-  const accent = new THREE.MeshStandardMaterial({
-    color: 0x68e4ef,
-    emissive: 0x38bedc,
-    emissiveIntensity: 1.3,
-  });
-  const positions = [
-    0, 0.6, -5.4, -1, 0, 2.5, 1, 0, 2.5, 0, 0.6, -5.4, 1, 0, 2.5, 0, 1.1, 1.1,
-    0, 0.6, -5.4, 0, 1.1, 1.1, -1, 0, 2.5, -1, 0, 2.5, 0, 1.1, 1.1, 1, 0, 2.5,
-  ];
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.computeVertexNormals();
-  group.add(new THREE.Mesh(geo, ivory));
-  for (const side of [-1, 1]) {
-    const wingGeo = new THREE.BufferGeometry();
-    const a = [side * 0.6, 0.15, -1.2],
-      b = [side * 5.1, -0.3, 2.4],
-      c = [side * 1.4, 0.1, 1.9];
-    wingGeo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(
-        side > 0
-          ? [...a, ...c, ...b, ...a, ...b, ...c]
-          : [...a, ...b, ...c, ...a, ...c, ...b],
-        3,
-      ),
-    );
-    wingGeo.computeVertexNormals();
-    group.add(new THREE.Mesh(wingGeo, ivory));
-    const pod = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.4, 0.5, 2, 5),
-      dark,
-    );
-    pod.rotation.x = Math.PI / 2;
-    pod.position.set(side * 1.4, -0.1, 1.8);
-    group.add(pod);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.15, 5, 5), accent);
-    tip.position.set(side * 4.75, -0.3, 2.18);
-    group.add(tip);
-  }
-  const cockpit = new THREE.Mesh(new THREE.OctahedronGeometry(0.85), dark);
-  cockpit.scale.set(0.58, 0.42, 1.6);
-  cockpit.position.set(0, 0.8, -0.7);
-  group.add(cockpit);
   const engine = points(
-    [-1.4, -0.1, 3, 1.4, -0.1, 3],
+    exhausts.flatMap((point) => point.toArray()),
     [0.4, 0.83, 1, 0.4, 0.83, 1],
     3.2,
     0.9,
   );
   group.add(engine);
   const plume = new THREE.Group();
-  for (const side of [-1, 1]) {
+  for (const exhaust of exhausts) {
+    // Put the geometry's base at its origin so length changes stay on the nozzle.
+    const geometry = new THREE.ConeGeometry(0.32, 4.5, 7);
+    geometry.translate(0, 2.25, 0);
     const mesh = new THREE.Mesh(
-      new THREE.ConeGeometry(0.32, 4.5, 7),
+      geometry,
       new THREE.MeshBasicMaterial({
         color: 0x85dfff,
         transparent: true,
@@ -279,7 +250,7 @@ function createShip() {
       }),
     );
     mesh.rotation.x = Math.PI / 2;
-    mesh.position.set(side * 1.4, -0.1, 5.1);
+    mesh.position.copy(exhaust);
     plume.add(mesh);
   }
   group.add(plume);
@@ -529,7 +500,7 @@ function clearFolderWorld() {
   text("folder-note", "Your files stay on this device. Nothing is uploaded.");
   text("source-note", "Connect a folder to create your world.");
   text("activity-line", "Choose a folder to discover its system.");
-  text("pause-button", "Ⅱ");
+  updatePauseButton();
   updateFolderUI();
 }
 async function connectSource(source) {
@@ -839,6 +810,7 @@ function launch() {
     return;
   state.launched = true;
   state.paused = false;
+  updatePauseButton();
   $("intro").hidden = true;
   $("mission").hidden = false;
   $("scene").focus({ preventScroll: true });
@@ -875,8 +847,7 @@ function beginLanding(body = landable(state.spaceWorld, state.ship.position)) {
   });
   if (next === state.layer) return;
   state.paused = false;
-  text("pause-button", "Ⅱ");
-  $("pause-button").setAttribute("aria-label", "Pause flight");
+  updatePauseButton();
   state.layerGeneration++;
   state.transitionBody = body;
   state.transitionStart = {
@@ -906,8 +877,7 @@ function beginTakeoff(type = "takeoff") {
   const next = layerReducer(state.layer, { type });
   if (next === state.layer) return;
   state.paused = false;
-  text("pause-button", "Ⅱ");
-  $("pause-button").setAttribute("aria-label", "Pause flight");
+  updatePauseButton();
   state.transitionBody =
     state.spaceWorld?.bodies.find((b) => b.id === state.layer.planetId) ||
     state.planetWorld?.body ||
@@ -1226,6 +1196,7 @@ function setCourse(target, { tour = false } = {}) {
   state.destination = null;
   state.holding = false;
   state.paused = false;
+  updatePauseButton();
   state.layer = layerReducer(state.layer, { type: "released" });
   clearInput();
   closePanels();
@@ -1901,16 +1872,19 @@ function showConstants() {
   );
   $("constants").showModal();
 }
+function updatePauseButton() {
+  const button = $("pause-button"),
+    label = state.paused ? "Resume flight" : "Pause flight";
+  setIcon(button, state.paused ? "play" : "pause");
+  button.setAttribute("aria-label", label);
+  button.title = label;
+}
 function togglePause() {
   if (!state.launched || transition()) return;
   cancelShot();
   state.paused = !state.paused;
   clearInput();
-  text("pause-button", state.paused ? "▷" : "Ⅱ");
-  $("pause-button").setAttribute(
-    "aria-label",
-    state.paused ? "Resume flight" : "Pause flight",
-  );
+  updatePauseButton();
   toast(
     state.paused ? "Flight paused. Press Escape to resume." : "Flight resumed.",
   );
@@ -2219,6 +2193,7 @@ function diagnostics() {
     ready:
       !!activeWorld() &&
       (state.layer.name !== "planet" || state.layer.payloadReady),
+    modelAssets: { ready: true, source: "Blender / GLB", names: assets.names },
     source: state.source
       ? {
           kind: state.source.kind,
@@ -2594,6 +2569,7 @@ function animate(time) {
   }
   const onSurface = surface(),
     world = activeWorld();
+  showcase.update({ visible: !world && !state.source, time: state.time, compact: innerWidth <= 700, reducedMotion: reducedMotion.matches });
   spaceRenderer.setVisible(!!state.spaceWorld && !onSurface);
   planetRenderer.setVisible(!!state.planetWorld && onSurface);
   if (world) {
@@ -2657,6 +2633,10 @@ function animate(time) {
       ? p.clone().add(new THREE.Vector3(0, 0, -25))
       : new THREE.Vector3(0, 0, -100);
   }
+  if (!world && !state.source) {
+    cameraTarget.set(0, 10, 70);
+    look.set(0, 10, 0);
+  }
   camera.position.lerp(
     cameraTarget,
     1 - Math.exp(-dt * (transition() ? 8 : 4)),
@@ -2671,7 +2651,7 @@ function animate(time) {
     0.1,
   );
   const speed = length(state.ship.velocity);
-  shipMesh.userData.plume.scale.z = 0.2 + speed / 40;
+  for (const cone of shipMesh.userData.plume.children) cone.scale.y = 0.2 + speed / 40;
   shipMesh.userData.plume.visible = speed > 2;
   shipMesh.userData.engine.material.size = 2.5 + speed / 50;
   if (!paused && world && !transition()) {
@@ -2727,3 +2707,12 @@ renderer.domElement.addEventListener("webglcontextlost", (event) => {
 initializeSource();
 setInterval(loadWorld, 5000);
 requestAnimationFrame(animate);
+
+}
+startGame().catch((error) => {
+  const panel = document.getElementById("error");
+  if (panel.hidden) document.getElementById("error-message").textContent = "The 3D world could not load. Check your connection and try again.";
+  panel.hidden = false;
+  document.getElementById("retry").addEventListener("click", () => location.reload());
+  console.error("Space Drift startup:", error);
+});

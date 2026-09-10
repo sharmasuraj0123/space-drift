@@ -1,0 +1,205 @@
+{
+  "format": "glTF 2.0 binary",
+  "up": "+Y",
+  "shipForward": "-Z",
+  "assets": {
+    "explorer": {
+      "triangles": 1640,
+      "meshes": 6,
+      "bounds": {
+        "min": [
+          -4.66241,
+          -0.52,
+          -5.03352
+        ],
+        "max": [
+          4.66241,
+          1.07,
+          2.68
+        ]
+      },
+      "radius": 5.337185,
+      "role": "player-ship"
+    },
+    "planet_basalt": {
+      "triangles": 1280,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.97786,
+          -0.96916,
+          -0.93143
+        ],
+        "max": [
+          0.97899,
+          0.97824,
+          0.94138
+        ]
+      },
+      "radius": 1.0,
+      "role": "repository-planet"
+    },
+    "planet_ocean": {
+      "triangles": 1280,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.9348,
+          -0.97806,
+          -0.94385
+        ],
+        "max": [
+          0.93751,
+          0.95066,
+          0.92185
+        ]
+      },
+      "radius": 1.0,
+      "role": "repository-planet"
+    },
+    "planet_ice": {
+      "triangles": 1280,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.96842,
+          -0.97679,
+          -0.9816
+        ],
+        "max": [
+          0.98277,
+          0.97267,
+          0.96398
+        ]
+      },
+      "radius": 1.0,
+      "role": "repository-planet"
+    },
+    "atom_code": {
+      "triangles": 204,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.86773,
+          -0.73714,
+          -0.57434
+        ],
+        "max": [
+          0.86773,
+          0.73714,
+          0.57434
+        ]
+      },
+      "radius": 1.0,
+      "role": "file-atom"
+    },
+    "atom_data": {
+      "triangles": 260,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.99805,
+          -0.63706,
+          -0.88393
+        ],
+        "max": [
+          0.92942,
+          0.63706,
+          0.88393
+        ]
+      },
+      "radius": 1.0,
+      "role": "file-atom"
+    },
+    "atom_document": {
+      "triangles": 192,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.86734,
+          -0.77194,
+          -0.71089
+        ],
+        "max": [
+          0.86734,
+          0.94862,
+          0.71089
+        ]
+      },
+      "radius": 1.0,
+      "role": "file-atom"
+    },
+    "atom_media": {
+      "triangles": 260,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.59983,
+          -0.36185,
+          -0.87522
+        ],
+        "max": [
+          0.9979,
+          0.36185,
+          0.87522
+        ]
+      },
+      "radius": 1.0,
+      "role": "file-atom"
+    },
+    "atom_other": {
+      "triangles": 216,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.88468,
+          -0.65145,
+          -0.71418
+        ],
+        "max": [
+          0.96122,
+          0.65145,
+          0.71418
+        ]
+      },
+      "radius": 1.0,
+      "role": "file-atom"
+    },
+    "molecule": {
+      "triangles": 552,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.9134,
+          -0.91267,
+          -0.91676
+        ],
+        "max": [
+          0.93286,
+          0.91,
+          0.91204
+        ]
+      },
+      "radius": 1.0,
+      "role": "folder-cage"
+    },
+    "asteroid": {
+      "triangles": 240,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -0.94137,
+          -0.65247,
+          -0.75285
+        ],
+        "max": [
+          0.96856,
+          0.56881,
+          0.78755
+        ]
+      },
+      "radius": 1.0,
+      "role": "space-debris"
+    }
+  }
+}

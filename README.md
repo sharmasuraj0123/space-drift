@@ -1,6 +1,22 @@
 # Space Drift
 
+![Space Drift — Your files. In orbit. An explorer ship flies between a ringed planet and molecular satellites.](assets/space-drift-hero.svg)
+
 Fly a small ship through your local workspace as a two-layer universe. Repositories are planets; land on one to explore its folders as molecules and files as atoms. Bytes create mass, recent changes add excitation, and that excitation produces gravity, heat, and light which fade together. Press E to open an atom in a read-only local viewer.
+
+## Inside the universe
+
+Real application captures from a synthetic local workspace, at 1280×800. No personal files are shown.
+
+| Fly between repository planets | Land among folders and files |
+| --- | --- |
+| ![Space view with a ship approaching the Observatory repository planet.](assets/screenshots/space.png) | ![Surface view showing folder molecules and file atoms.](assets/screenshots/surface.png) |
+| **Find a route in the Atlas** | **Open a file and return to flight** |
+| ![Workspace Atlas with searchable repository destinations.](assets/screenshots/atlas.png) | ![Read-only file viewer displaying the synthetic Observatory README.](assets/screenshots/viewer.png) |
+
+The ship, repository planets, folder cages, file atoms, and debris are authored Blender models used during flight. The welcome view uses the same live meshes. Eleven models are bundled in `public/assets/models/space-drift.glb` (688,144 bytes): an explorer, three planet variants, five file families, a molecule cage, and an asteroid. Files render in up to five instanced batches, retaining their authored shapes and colors at the map's data-driven scale. The README hero and social card use separate promotional artwork.
+
+See the [asset guide](assets/README.md) for model bounds and triangle counts, editable Blender sources, the palette, SVG icons, export commands, and screenshot regeneration.
 
 ## Use a local folder in the browser
 
@@ -22,7 +38,16 @@ npm run build
 npm run preview
 ```
 
-Open [the static preview](http://127.0.0.1:4190) and choose a folder in the browser. `npm run build` produces `dist/` from the public app plus the two Three.js runtime modules and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C.
+Open [the static preview](http://127.0.0.1:4190) and choose a folder in the browser. `npm run build` produces `dist/` from the public app and committed GLB, plus the two Three.js runtime modules, local `GLTFLoader`, `BufferGeometryUtils`, and `SkeletonUtils` addons, and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C. Normal builds use the committed model pack and do not require Blender.
+
+To regenerate the game models with Blender 5.2:
+
+```sh
+blender --background --python scripts/create-game-assets.py
+npm run build
+```
+
+The script writes the editable `assets/source/game-assets.blend`, the GLB, and a manifest of measured bounds and triangle counts. Models use +Y up, the explorer faces −Z, and every non-ship model fits inside a unit sphere before runtime scaling. The [asset guide](assets/README.md) also covers the separate promotional-art export.
 
 ## Deploy to Vercel
 
@@ -93,7 +118,7 @@ The atlas can land, fly by, search across surveyed bodies, or fly to a local mol
 
 **Light.** Luminosity is the decay rate times remaining excitation, in bytes per day. A large cold file is massive and dark. A recent commit can make its body heavier and brighter in space, and heat and brighten its atoms and molecules on the surface. Other emitters illuminate dark neighbors with an inverse-square falloff. Emission uses element colors with hotter atoms approaching white. The active renderer uses at most eight body or molecule point lights plus a ship headlamp. Flashes mark actual excitation increases; deleted atoms briefly cool visually without remaining openable or contributing live mass.
 
-Space overlays show curvature, energy, or light. Surface overlays show bonds, temperature, or light. Each layer remembers its own choice. Curvature instruments use the same finite-difference stencil as the field grid. **∑** opens the design and derived constants.
+Space overlays show curvature, energy, or light. Surface overlays show bonds, temperature, or light. Each layer remembers its own choice. Curvature instruments use the same finite-difference stencil as the field grid. The **sliders icon** opens the design and derived constants.
 
 ## Guided tours
 
@@ -149,9 +174,9 @@ npm run check
 npm run build
 ```
 
-The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, and HTTP file boundaries. See [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
+The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, HTTP file boundaries, and the GLB model contract and resource ownership. `npm run assets:capture` checks model readiness and console/GPU errors while flying real routes through a disposable synthetic workspace, opening a file, lifting off, disconnecting, and reconnecting. See the [asset guide](assets/README.md) for browser setup and [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
 
-`window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, probes, lighting and renderer counters. These expose observation only; journeys are tested through normal game controls.
+`window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, probes, lighting, renderer counters, and `modelAssets` readiness/source/names. These expose observation only; journeys are tested through normal game controls.
 
 | Files | Responsibility |
 | --- | --- |
@@ -161,6 +186,8 @@ The Node test suite covers discovery, independent survey scheduling, Git statist
 | `public/constants.js`, `energy.js`, `bodies.js`, `field.js`, `model.js` | Derived physics, packing and ship simulation |
 | `public/layers.js`, `planet-loader.js`, `tours.js`, `probes.js` | Pure transitions, loading lifecycle, navigation and probes |
 | `public/light.js`, `render-space.js`, `render-planet.js`, `render-light.js`, `render-common.js` | Shared light model and separate layer rendering |
+| `public/model-assets.js`, `public/render-showcase.js`, `public/assets/models/space-drift.glb` | Authored model loading, instancing, and live welcome scene |
+| `scripts/create-game-assets.py`, `assets/source/game-assets.blend`, `assets/source/game-assets-manifest.json` | Blender authoring, editable source, and measured model contract |
 | `public/main.js`, `instruments.js`, `index.html`, `styles.css` | Controls, routes, atlas, HUD and diagnostics |
 | `public/viewer.js`, `preview.js`, `lib/files.mjs` | Local preview and file-access boundaries |
 | `vercel.json`, `scripts/build.mjs`, `scripts/preview.mjs` | Static deployment and loopback preview |

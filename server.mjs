@@ -9,15 +9,23 @@ import { FileAccessError, launchMappedFile, openMappedFile, parseByteRange, read
 const APP_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIRECTORY = path.join(APP_DIRECTORY, 'public');
 const VENDOR_DIRECTORY = path.join(APP_DIRECTORY, 'node_modules/three/build');
+const ADDON_DIRECTORY = path.join(APP_DIRECTORY, 'node_modules/three/examples/jsm');
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.glb': 'model/gltf-binary',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
 };
 const VENDOR_FILES = new Map([
   ['/vendor/three.module.js', 'three.module.js'],
   ['/vendor/three.core.js', 'three.core.js'],
+]);
+const ADDON_FILES = new Map([
+  ['/vendor/addons/loaders/GLTFLoader.js', 'loaders/GLTFLoader.js'],
+  ['/vendor/addons/utils/BufferGeometryUtils.js', 'utils/BufferGeometryUtils.js'],
+  ['/vendor/addons/utils/SkeletonUtils.js', 'utils/SkeletonUtils.js'],
 ]);
 
 function readJsonBody(request, limit = 4096) {
@@ -45,7 +53,7 @@ function readJsonBody(request, limit = 4096) {
   });
 }
 
-export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, universeOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
+export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, universeOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, addonDirectory = ADDON_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
   const universe = createUniverseReader(root, { ...universeOptions, scannerOptions });
   const readWorld = () => universe.mappedAtoms();
   const server = http.createServer(async (request, response) => {
@@ -139,9 +147,10 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
       if (pathname.startsWith('/api/')) return send(404, { error: 'Unknown API route.' });
       let filePath;
       const vendorFile = VENDOR_FILES.get(pathname);
-      if (vendorFile) {
-        const vendorPath = await realpath(vendorDirectory);
-        filePath = await realpath(path.join(vendorPath, vendorFile));
+      const addonFile = ADDON_FILES.get(pathname);
+      if (vendorFile || addonFile) {
+        const vendorPath = await realpath(addonFile ? addonDirectory : vendorDirectory);
+        filePath = await realpath(path.join(vendorPath, addonFile || vendorFile));
         if (!filePath.startsWith(vendorPath + path.sep)) return send(403, { error: 'Path is not available.' });
       } else {
         if (pathname.startsWith('/vendor/') || pathname.split('/').some((part) => part.startsWith('.'))) {
