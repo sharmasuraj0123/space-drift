@@ -8,6 +8,7 @@
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
+    "verify:sample": "npm run build && node scripts/verify-sample.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",

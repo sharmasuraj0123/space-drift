@@ -87,7 +87,7 @@ export function createFileViewer({ onClose = () => {}, getSource = () => SERVER_
         const response = await fetch(`/api/file?path=${encodeURIComponent(file.path)}`, { signal: currentRequest.signal });
         result = await response.json();
         if (!response.ok) throw new Error(result.error || 'This file could not be opened.');
-      } else if (source.kind === 'directory' || source.kind === 'snapshot') {
+      } else if (source.kind === 'directory' || source.kind === 'snapshot' || source.kind === 'sample') {
         if (typeof source.getFile !== 'function') throw new Error('This folder cannot open files. Choose it again.');
         const selected = await awaitWithSignal(source.getFile(file.path, { signal: currentRequest.signal }), currentRequest.signal);
         if (number !== requestNumber || !dialog.open) return false;
