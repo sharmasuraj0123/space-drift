@@ -1,25 +1,8 @@
 /** Browser-only previews read user-selected Files; they never request a URL. */
 export const TEXT_PREVIEW_LIMIT = 256 * 1024;
 
-const TEXT_EXTENSIONS = new Set(('txt md mdx markdown rst adoc log csv tsv json jsonl ndjson geojson js mjs cjs ts tsx jsx css scss sass less html htm xhtml svg xml yaml yml toml ini conf cfg sql py rb rs go java kt kts c h cc cpp hpp cs swift sh bash zsh fish vue svelte astro graphql gql proto r tex').split(' '));
-const TEXT_NAMES = new Set(['readme', 'license', 'licence', 'notice', 'authors', 'changelog', 'makefile', 'dockerfile', 'procfile', 'gemfile', 'rakefile']);
-const MEDIA = new Map([
-  ['png', ['image', 'image/png']], ['jpg', ['image', 'image/jpeg']], ['jpeg', ['image', 'image/jpeg']],
-  ['gif', ['image', 'image/gif']], ['webp', ['image', 'image/webp']], ['avif', ['image', 'image/avif']],
-  ['bmp', ['image', 'image/bmp']], ['ico', ['image', 'image/x-icon']],
-  ['pdf', ['pdf', 'application/pdf']], ['mp3', ['audio', 'audio/mpeg']], ['wav', ['audio', 'audio/wav']],
-  ['ogg', ['audio', 'audio/ogg']], ['opus', ['audio', 'audio/ogg']], ['flac', ['audio', 'audio/flac']],
-  ['m4a', ['audio', 'audio/mp4']], ['aac', ['audio', 'audio/aac']], ['mp4', ['video', 'video/mp4']],
-  ['webm', ['video', 'video/webm']], ['mov', ['video', 'video/quicktime']], ['ogv', ['video', 'video/ogg']],
-]);
-
-export function classifyLocalFile(name) {
-  const filename = String(name).toLowerCase();
-  const extension = filename.includes('.') ? filename.split('.').at(-1) : '';
-  if (TEXT_EXTENSIONS.has(extension) || TEXT_NAMES.has(filename)) return { kind: 'text', mime: 'text/plain; charset=utf-8' };
-  const media = MEDIA.get(extension);
-  return media ? { kind: media[0], mime: media[1] } : { kind: 'unsupported', mime: 'application/octet-stream' };
-}
+import { classifyFile as classifyLocalFile } from './file-types.js';
+export { classifyFile as classifyLocalFile } from './file-types.js';
 
 function abortError() { return new DOMException('This preview was cancelled.', 'AbortError'); }
 
@@ -79,7 +62,7 @@ export function createLocalPreviewSession({ createObjectURL = (blob) => URL.crea
       const text = new TextDecoder('utf-8').decode(bytes, { stream: truncated });
       return { ...metadata, text, truncated };
     }
-    if (classification.kind === 'unsupported') return metadata;
+    if (['unsupported', 'document'].includes(classification.kind)) return metadata;
     // Force the allowlisted media MIME; never trust an HTML MIME on a .png File.
     const url = createObjectURL(file.slice(0, file.size, classification.mime));
     if (!current()) { revokeObjectURL(url); throw abortError(); }

@@ -1,5 +1,6 @@
 node_modules/
 artifacts/
 dist/
+.reader-build/
 .vercel/
 .xo/

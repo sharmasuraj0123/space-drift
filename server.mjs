@@ -9,13 +9,14 @@ import { FileAccessError, launchMappedFile, openMappedFile, parseByteRange, read
 const APP_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIRECTORY = path.join(APP_DIRECTORY, 'public');
 const VENDOR_DIRECTORY = path.join(APP_DIRECTORY, 'node_modules/three/build');
+const READER_DIRECTORY = path.join(APP_DIRECTORY, '.reader-build');
 const ADDON_DIRECTORY = path.join(APP_DIRECTORY, 'node_modules/three/examples/jsm');
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
-  '.glb': 'model/gltf-binary',
+  '.glb': 'model/gltf-binary', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.bcmap': 'application/octet-stream',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
 };
 const VENDOR_FILES = new Map([
@@ -53,7 +54,7 @@ function readJsonBody(request, limit = 4096) {
   });
 }
 
-export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, universeOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, addonDirectory = ADDON_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
+export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOptions, universeOptions, publicDirectory = PUBLIC_DIRECTORY, vendorDirectory = VENDOR_DIRECTORY, addonDirectory = ADDON_DIRECTORY, readerDirectory = READER_DIRECTORY, nativeExecutor, nativePlatform } = {}) {
   const universe = createUniverseReader(root, { ...universeOptions, scannerOptions });
   const readWorld = () => universe.mappedAtoms();
   const server = http.createServer(async (request, response) => {
@@ -129,7 +130,7 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
             if (error.status === 416) response.setHeader('Content-Range', `bytes */${metadata.size}`);
             throw error;
           }
-          // Even a directly opened SVG/PDF cannot run scripts or load remote resources.
+          // Even a directly opened PDF/document cannot run scripts or load remote resources.
           response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'none'; sandbox");
           response.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(metadata.name).replace(/'/g, '%27')}`);
           response.setHeader('Accept-Ranges', 'bytes');
@@ -148,7 +149,12 @@ export function createServer({ root = path.dirname(APP_DIRECTORY), scannerOption
       let filePath;
       const vendorFile = VENDOR_FILES.get(pathname);
       const addonFile = ADDON_FILES.get(pathname);
-      if (vendorFile || addonFile) {
+      if (pathname.startsWith('/reader-assets/')) {
+        if (pathname.split('/').some(part => part.startsWith('.'))) return send(404, { error: 'File not found.' });
+        const readerRoot = await realpath(readerDirectory);
+        filePath = await realpath(path.join(readerRoot, pathname.slice('/reader-assets/'.length)));
+        if (!filePath.startsWith(readerRoot + path.sep)) return send(403, { error: 'Path is not available.' });
+      } else if (vendorFile || addonFile) {
         const vendorPath = await realpath(addonFile ? addonDirectory : vendorDirectory);
         filePath = await realpath(path.join(vendorPath, addonFile || vendorFile));
         if (!filePath.startsWith(vendorPath + path.sep)) return send(403, { error: 'Path is not available.' });
@@ -200,6 +206,8 @@ export async function main(args = process.argv.slice(2)) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be an integer between 1 and 65535.');
   if (!(await stat(root)).isDirectory()) throw new Error('The selected root must be a directory.');
   root = await realpath(root);
+  const { buildReaders } = await import('./scripts/build-readers.mjs');
+  await buildReaders(READER_DIRECTORY);
   const server = createServer({ root });
   await new Promise((resolve, reject) => {
     server.once('error', reject);

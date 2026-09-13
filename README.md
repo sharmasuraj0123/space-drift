@@ -49,7 +49,7 @@ Folder access lasts for this page session. Browsers can deny access to protected
 
 ## Build and preview
 
-Requires Node.js 20 or newer and npm for development and builds. The deployed app does not need a Node server.
+Requires Node.js 22.13 or newer and npm for development and builds. The deployed app does not need a Node server.
 
 ```sh
 cd space-drift
@@ -58,7 +58,7 @@ npm run build
 npm run preview
 ```
 
-Open [the static preview](http://127.0.0.1:4190) and choose **Explore sample folder** or connect a folder in the browser. `npm run build` produces `dist/` from the public app and committed GLB, plus the two Three.js runtime modules, local `GLTFLoader`, `BufferGeometryUtils`, and `SkeletonUtils` addons, and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C. Normal builds use the committed model pack and do not require Blender.
+Open [the static preview](http://127.0.0.1:4190) and choose **Explore sample folder** or connect a folder in the browser. `npm run build` produces `dist/` from the public app and committed GLB, plus the two Three.js runtime modules, local `GLTFLoader`, `BufferGeometryUtils`, and `SkeletonUtils` addons, and their license. It also bundles lazy local reader modules and workers, PDF fonts/CMaps/WASM, and dependency license notices. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C. Normal builds use the committed model pack and do not require Blender.
 
 To regenerate the game models with Blender 5.2:
 
@@ -170,7 +170,7 @@ E opens a nearby atom instantly within 18 units, with no aiming required. From f
 
 Q or a scene click launches a cosmetic probe from the ship and opens its target on impact, without moving the ship. Surface probes reach 160 units, take 0.3–0.8 seconds, and recharge in 0.65 seconds. Space targeting reaches 600 units and plans a landing route. A miss or out-of-range shot gives feedback and opens nothing.
 
-Text/code, images, PDFs, audio and video display in the read-only viewer. Text previews are capped at 256 KiB and rendered as text, including source HTML/SVG. Closing the viewer returns to the same position. Charting happens only after opening succeeds; reopening an atom does not duplicate progress.
+The local reader prettifies Markdown, highlights code, displays JSON and delimited tables, reads DOCX and XLSX/XLS/ODS workbooks, and offers paged PDFs, images, audio and video. Preview/Source preserves the original text; HTML, SVG and MDX remain inert source. Text previews are capped at 256 KiB. Heavy renderers and workers load on demand from this deployment, with no file uploads or runtime CDN. See the [support matrix and preview limits](docs/preview-support.md). Closing the viewer returns to the same position. Charting happens only after opening succeeds; reopening an atom does not duplicate progress.
 
 Optional Node mode on macOS can open supported documents in their desktop app and source files in a text editor. Unknown/executable formats are revealed in Finder. Hosted mode keeps previews inside the browser and offers no desktop launcher.
 
@@ -193,6 +193,8 @@ npm test
 npm run check
 npm run build
 ```
+
+Run `npm run verify:previews` with Chrome installed to verify rich reader formats, source adapters, cleanup, privacy and 320/390px layouts. `node scripts/verify-preview-performance.mjs` records the Markdown benchmark after a build; the measurements and limits are documented in `docs/preview-support.md`.
 
 Run `npm run verify:sample` with Chrome installed to check the playable sample mission, file opening, restart, mobile controls and handoff to a local folder. The script uses a temporary static preview and synthetic local folder, and saves screenshots in `artifacts/sample/`.
 

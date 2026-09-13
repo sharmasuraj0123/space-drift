@@ -8,6 +8,7 @@
 node_modules
 artifacts
 dist
+.reader-build
 .env
 .env.*
 server.mjs

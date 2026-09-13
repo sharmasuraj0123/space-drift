@@ -7,21 +7,31 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node server.mjs",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:sample": "npm run build && node scripts/verify-sample.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
     "assets:export": "node scripts/export-assets.mjs",
-    "assets:capture": "node scripts/capture-assets.mjs"
+    "assets:capture": "node scripts/capture-assets.mjs",
+    "verify:previews": "npm run build && node scripts/verify-previews.mjs && node scripts/verify-preview-sources.mjs"
   },
   "dependencies": {
-    "three": "0.185.1"
+    "dompurify": "3.4.15",
+    "jszip": "3.10.1",
+    "mammoth": "1.12.3",
+    "markdown-it": "15.0.2",
+    "papaparse": "5.7.0",
+    "pdfjs-dist": "6.3.289",
+    "shiki": "4.4.3",
+    "three": "0.185.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "ignore": "^7.0.9",
     "playwright": "^1.63.0",
     "sharp": "^0.35.4"

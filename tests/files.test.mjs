@@ -159,6 +159,7 @@ test('HTTP file preview provides text and seekable media while enforcing access 
   await writeFile(path.join(root, 'a #&?.mp4'), media);
   await writeFile(path.join(root, 'picture.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
   await writeFile(path.join(root, 'unknown.bin'), media);
+  await writeFile(path.join(root, 'letter.docx'), media);
   await writeFile(path.join(root, '.env'), 'test fixture only');
   await writeFile(path.join(root, 'private.pem'), 'test fixture only');
   const server = createServer({ root });
@@ -193,9 +194,14 @@ test('HTTP file preview provides text and seekable media while enforcing access 
   const invalid = await fetch(base + preview.contentUrl, { headers: { Range: 'bytes=9999-' } });
   assert.equal(invalid.status, 416);
   assert.equal(invalid.headers.get('content-range'), `bytes */${media.length}`);
+  const document = await (await fetch(`${base}/api/file?path=letter.docx`)).json();
+  assert.equal(document.kind, 'document');
+  const documentBytes = await fetch(base + document.contentUrl);
+  assert.equal(documentBytes.status, 200);
+  assert.match(documentBytes.headers.get('content-security-policy'), /sandbox/);
+  assert.deepEqual(Buffer.from(await documentBytes.arrayBuffer()), media);
   const svg = await fetch(`${base}/api/file-content?path=picture.svg`);
-  assert.equal(svg.status, 200);
-  assert.match(svg.headers.get('content-security-policy'), /script-src 'none'; sandbox/);
+  assert.equal(svg.status, 415); // SVG is inert source in every source mode.
   assert.equal(svg.headers.get('cross-origin-resource-policy'), 'same-origin');
   await svg.arrayBuffer();
   for (const route of ['/api/file', '/api/file-content']) {
