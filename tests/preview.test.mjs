@@ -39,7 +39,7 @@ test('text reads are capped by bytes without splitting a trailing UTF-8 characte
 
 test('unknown files and disguised binary text have no media URL', async () => {
   const { preview, created } = session();
-  for (const file of [new File(['document'], 'report.docx', { type: 'text/html' }), new File([new Uint8Array([0, 1, 2])], 'binary.txt')]) {
+  for (const file of [new File(['document'], 'report.pptx', { type: 'text/html' }), new File([new Uint8Array([0, 1, 2])], 'binary.txt')]) {
     const result = await preview.open(file, file.name);
     assert.equal(result.kind, 'unsupported');
     assert.equal(result.contentUrl, undefined);

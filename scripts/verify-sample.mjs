@@ -36,8 +36,10 @@ try {
   const capture = name => page.screenshot({ path: new URL(name, output).pathname });
   const readAndClose = async text => {
     await page.locator('#scene').press('KeyE');
-    await page.waitForFunction(() => document.querySelector('#viewer-content').dataset.kind === 'text');
+    await page.waitForFunction(() => document.querySelector('#viewer-content').dataset.kind === 'text' && document.querySelector('#viewer-content').getAttribute('aria-busy') === 'false');
     assert.match(await page.locator('#viewer-content').innerText(), text);
+    assert.equal(await page.locator('#viewer-content h1').count(), 1, 'Markdown opens as a rendered document in the real game.');
+    await capture((await page.locator('#viewer-path').innerText()).startsWith('observatory/') ? 'reader-in-flight.png' : 'reader-local-folder.png');
     await page.getByRole('button', { name: 'Close file and return to flight', exact: true }).click();
   };
   const flyGate = async id => {
@@ -114,8 +116,13 @@ try {
   }, null, { timeout: 60000 });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.demo-primary').filter({ hasText: 'Open signal' }).click();
-  await page.waitForFunction(() => document.querySelector('#viewer-content').dataset.kind === 'text');
+  await page.waitForFunction(() => document.querySelector('#viewer-content').dataset.kind === 'text' && document.querySelector('#viewer-content').getAttribute('aria-busy') === 'false');
+  await page.getByLabel('First row contains headers').check();
+  assert.deepEqual(await page.locator('.reader-table thead th').allTextContents(), ['Row', 'wavelength_nm', 'synthetic_intensity']);
+  await page.locator('#viewer-source').click();
   assert.match(await page.locator('#viewer-content').innerText(), /wavelength_nm,synthetic_intensity/);
+  await page.locator('#viewer-preview').click();
+  await page.waitForFunction(() => document.querySelector('#viewer-content').getAttribute('aria-busy') === 'false');
   await page.getByRole('button', { name: 'Close file and return to flight', exact: true }).click();
   await step('takeoff');
   await page.locator('.demo-primary').filter({ hasText: 'Lift off' }).click();

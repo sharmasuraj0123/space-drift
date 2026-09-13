@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,7 +42,7 @@ async function deploymentFixture(t, rules) {
   };
 
   // Model the upload before building: excluded source files never reach Vercel.
-  for (const filename of ['scripts/build.mjs', ...publicFiles]) {
+  for (const filename of ['scripts/build.mjs', 'scripts/build-readers.mjs', 'package.json', 'package-lock.json', ...publicFiles]) {
     if (!matcher.ignores(filename)) await copy(path.join(project, filename), filename);
   }
   for (const filename of privateSources) {
@@ -52,16 +52,13 @@ async function deploymentFixture(t, rules) {
     }
   }
 
-  // Dependency installation happens after upload; only the build's Three inputs
-  // are needed here, with no globally installed CLI or network dependency.
-  for (const [source] of vendorFiles) {
-    const filename = `node_modules/three/${source}`;
-    await copy(path.join(project, filename), filename);
-  }
+  // Dependencies are installed after upload. Reuse the locked local install
+  // without copying platform binaries or relying on the network in this test.
+  await symlink(path.join(project, 'node_modules'), path.join(root, 'node_modules'), 'dir');
   return { root, publicFiles };
 }
 
-const build = root => run(process.execPath, ['scripts/build.mjs'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+const build = root => run(process.execPath, ['scripts/build.mjs'], { cwd: root, encoding: 'utf8', timeout: 30000 });
 
 test('Vercel-filtered source builds every public asset and vendor dependency while excluding editable sources', async t => {
   const rules = await readFile(path.join(project, '.vercelignore'), 'utf8');
@@ -73,7 +70,22 @@ test('Vercel-filtered source builds every public asset and vendor dependency whi
   const result = await build(root);
   assert.match(result.stdout, /static build ready/);
   const outputFiles = await filesAt(path.join(root, 'dist'));
-  assert.deepEqual(outputFiles, [...publicFiles.map(filename => filename.slice('public/'.length)), ...vendorFiles.map(([, filename]) => filename)].sort());
+  const generated = outputFiles.filter(filename => filename.startsWith('reader-assets/'));
+  assert.deepEqual(outputFiles.filter(filename => !filename.startsWith('reader-assets/')), [...publicFiles.map(filename => filename.slice('public/'.length)), ...vendorFiles.map(([, filename]) => filename)].sort());
+  const manifest = JSON.parse(await readFile(path.join(root, 'dist/reader-assets/manifest.json'), 'utf8'));
+  for (const name of ['markdown', 'code', 'data', 'documents', 'media', 'html', 'text.worker', 'data.worker', 'documents.worker']) assert.ok(generated.includes(`reader-assets/${name}.js`));
+  assert.ok(generated.includes('reader-assets/pdf.worker.mjs'));
+  for (const directory of ['cmaps', 'standard_fonts', 'wasm']) {
+    const inputs = await filesAt(path.join(project, 'node_modules/pdfjs-dist', directory));
+    for (const input of inputs) assert.ok(generated.includes(`reader-assets/pdf/${directory}/${input}`));
+  }
+  for (const bundle of manifest.bundles) {
+    const file = path.join(root, 'dist/reader-assets', bundle.file);
+    assert.equal((await stat(file)).size, bundle.bytes);
+    // Use the bundler's exact import graph, including side-effect imports.
+    for (const entry of bundle.imports) await stat(path.join(root, 'dist/reader-assets', entry.file));
+  }
+  for (const dependency of manifest.dependencies) assert.ok(generated.includes(`reader-assets/${dependency.name}.LICENSE.txt`));
   for (const filename of publicFiles) {
     assert.deepEqual(await readFile(path.join(root, 'dist', filename.slice('public/'.length))), await readFile(path.join(project, filename)), `${filename} must survive packaging unchanged`);
   }

@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildReaders } from './build-readers.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, 'dist');
@@ -33,6 +34,7 @@ async function copyPublic(directory, destination) {
 
 await rm(output, { recursive: true, force: true });
 await copyPublic(path.join(root, 'public'), output);
+await buildReaders(path.join(output, 'reader-assets'), root);
 const vendor = path.join(output, 'vendor');
 await mkdir(vendor, { recursive: true });
 for (const filename of ['three.module.js', 'three.core.js']) {
