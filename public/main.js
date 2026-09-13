@@ -56,6 +56,10 @@ import {
   createSnapshotSource,
 } from "./folder-source.js";
 import { createServerSource } from "./server-source.js";
+import { createSampleSource, SAMPLE_LANDING_PATH, SAMPLE_FILE_PATH } from "./sample-source.js";
+import { createTutorial } from "./tutorial.js";
+import { createDemoMission, updateDemoMission, demoStep, crossedDemoGate } from "./demo-mission.js";
+import { createDemoRenderer } from "./demo-renderer.js";
 import { createSpaceRenderer } from "./render-space.js";
 import { createPlanetRenderer } from "./render-planet.js";
 
@@ -131,6 +135,25 @@ function savedOverlay(layer) {
 const keys = new Set(),
   tapUntil = new Map();
 let resetting = false;
+let tutorialExperience = {};
+let demoMission = null, demoTarget = null, demoCheckpoint = null, demoStageStart = null, demoPreviousPosition = null;
+const DEMO_SIGNAL_PATH = "observatory/signals/spectrum-01.csv";
+const tutorial = createTutorial({
+  onAction: tutorialAction,
+  onControl: (code) => keyDown(code),
+  onRelease: (code) => { keys.delete(code); tapUntil.delete(code); },
+  onClose: () => {
+    clearInput();
+    demoTarget = null;
+    $("demo-target-marker").hidden = true;
+    $("scene").focus({ preventScroll: true });
+  },
+});
+const demoMarker = document.createElement("div");
+demoMarker.id = "demo-target-marker";
+demoMarker.hidden = true;
+demoMarker.innerHTML = '<span class="demo-target-arrow" aria-hidden="true">◇</span><strong></strong><small></small>';
+document.body.append(demoMarker);
 const fileViewer = createFileViewer({
   getSource: () => state.source,
   onClose: () => {
@@ -166,10 +189,10 @@ try {
     "This game needs WebGL. Enable hardware acceleration and reload.";
   throw error;
 }
-for (const id of ["choose-folder", "folder-button", "snapshot-picker"]) $(id).disabled = true;
+for (const id of ["choose-folder", "folder-button", "snapshot-picker", "explore-sample", "sample-guide-button"]) $(id).disabled = true;
 $("folder-note").textContent = "Preparing your ship…";
 const assets = await loadModelAssets();
-for (const id of ["choose-folder", "folder-button", "snapshot-picker"]) $(id).disabled = false;
+for (const id of ["choose-folder", "folder-button", "snapshot-picker", "explore-sample", "sample-guide-button"]) $(id).disabled = false;
 $("folder-note").textContent = "Your files stay on this device. Nothing is uploaded.";
 // Studio fill reveals the authored surfaces; data excitation remains separate.
 scene.add(new THREE.HemisphereLight(0xc7d6ff, 0x11182b, .9));
@@ -182,6 +205,8 @@ scene.add(rimLight);
 const spaceRenderer = createSpaceRenderer({ THREE, scene, assets }),
   planetRenderer = createPlanetRenderer({ THREE, scene, assets });
 const showcase = createShowcase({ THREE, scene, assets });
+const demoRenderer = createDemoRenderer({ THREE, scene });
+const demoProjection = new THREE.Vector3(), demoCameraDirection = new THREE.Vector3(), demoToTarget = new THREE.Vector3();
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 function glowTexture() {
   const canvas = document.createElement("canvas");
@@ -392,7 +417,13 @@ function addButton(parent, label, action, className = "") {
 
 function updateFolderUI() {
   const connected = !!state.source,
+    sample = state.source?.kind === "sample",
     busy = state.connecting || state.choosing;
+  document.body.classList.toggle("sample-mode", sample);
+  $("explore-sample").hidden = connected;
+  $("explore-sample").disabled = busy;
+  $("sample-guide-button").disabled = busy;
+  text("sample-guide-button", sample ? "Restart playable demo" : "Play the sample mission");
   $("choose-folder").hidden = connected;
   $("choose-folder").disabled = busy;
   $("folder-button").disabled = busy;
@@ -401,22 +432,23 @@ function updateFolderUI() {
     : state.snapshotFallback
       ? "Choose snapshot "
       : "Choose a folder ";
-  text("folder-button", connected ? "Switch folder" : "Connect folder");
+  text("folder-button", connected && !sample ? "Switch folder" : "Connect folder");
   $("launch").hidden = !connected;
   $("launch").disabled =
     busy ||
     !activeWorld() ||
     (state.layer.name === "planet" && !state.layer.payloadReady);
-  $("refresh-folder").hidden = !connected;
+  $("refresh-folder").hidden = !connected || sample;
   $("refresh-folder").disabled = busy;
   text("refresh-folder", state.source?.live ? "Refresh" : "Reselect snapshot");
   $("disconnect-folder").hidden = !connected;
+  text("disconnect-folder", sample ? "Leave sample" : "Disconnect");
   $("map-button").disabled = !connected;
   $("snapshot-picker").hidden = connected;
   if (connected) {
     text(
       "connection",
-      `${state.spacePayload?.root?.name || state.source.name} · ${state.source.live ? "connected" : "snapshot"}`,
+      `${state.spacePayload?.root?.name || state.source.name} · ${sample ? "sample workspace" : state.source.live ? "connected" : "snapshot"}`,
     );
     text(
       "folder-note",
@@ -424,7 +456,9 @@ function updateFolderUI() {
     );
     text(
       "source-note",
-      state.source.kind === "server"
+      sample
+        ? "Fictional sample files · held in memory. Connect your folder whenever you’re ready."
+        : state.source.kind === "server"
         ? "Local server · per-repository Git · 5-second refresh."
         : state.source.live
           ? "Local folder · snapshot physics · 5-second refresh."
@@ -439,6 +473,12 @@ function showFolderError(message) {
 }
 function clearFolderWorld() {
   cancelShot();
+  tutorial.close();
+  tutorialExperience = {};
+  demoMission = demoTarget = demoCheckpoint = demoStageStart = demoPreviousPosition = null;
+  demoRenderer.reset();
+  document.body.classList.remove("instruments-open");
+  $("details-button").setAttribute("aria-expanded", "false");
   resetting = true;
   fileViewer.close();
   closePanels();
@@ -571,6 +611,14 @@ function applySpace(payload, first = false) {
   state.loader?.prune(payload.bodies.map((b) => b.id));
   spaceRenderer.setWorld(state.spaceWorld);
   if (first) {
+    if (state.source?.kind === "sample") {
+      const observatory = state.spaceWorld.bodies.find((body) => body.path === SAMPLE_LANDING_PATH);
+      if (observatory) {
+        // Give first-time pilots a clear view of a repository and its landing ring.
+        state.spaceWorld.launch = { x: observatory.center.x, y: 18, z: observatory.center.z + observatory.landingRadius + 180 };
+        state.holding = true;
+      }
+    }
     state.layer = createLayerState(payload);
     state.ship.position = { ...state.spaceWorld.launch };
   } else if (
@@ -702,7 +750,7 @@ async function loadPlanet(id, fresh = false) {
   }
 }
 async function loadWorld() {
-  if (!state.source || state.loading) return;
+  if (!state.source || state.source.kind === "sample" || state.loading) return;
   const source = state.source,
     version = state.sourceVersion;
   state.loading = true;
@@ -737,6 +785,197 @@ function chooseSnapshot() {
   $("folder-input").value = "";
   $("folder-input").click();
 }
+async function exploreSample() {
+  if (state.connecting || state.choosing) return;
+  clearInput();
+  closePanels();
+  state.pickerVersion++;
+  const source = createSampleSource();
+  await connectSource(source);
+  if (state.source !== source) return;
+  launch();
+  document.body.classList.remove("instruments-open");
+  $("details-button").setAttribute("aria-expanded", "false");
+  tutorialExperience = { openedFiles: [], overlayChanges: 0, liftedOff: false };
+  demoMission = createDemoMission();
+  enterDemoStep();
+  tutorial.start(demoMission);
+  updateTutorial();
+  $("toast").classList.remove("show");
+}
+
+function enterDemoStep() {
+  const id = demoStep(demoMission)?.id;
+  demoTarget = null;
+  demoStageStart = { position: { ...state.ship.position }, yaw: state.ship.yaw, speed: length(state.ship.velocity) };
+  demoCheckpoint = { ship: structuredClone(state.ship), layer: state.layer.name };
+  demoPreviousPosition = { ...state.ship.position };
+  tutorialExperience.manualThrust = false;
+  tutorialExperience.manualSteer = false;
+  tutorialExperience.thrustIntent = false;
+  tutorialExperience.steerIntent = false;
+  tutorialExperience.braking = false;
+  tutorialExperience.gateReached = false;
+  if (id === "overlay") tutorialExperience.overlayChanges = 0;
+  if (id === "takeoff") tutorialExperience.liftedOff = false;
+  if (id === "thrust" || id === "steer") {
+    const yaw = state.ship.yaw, offset = id === "steer" ? 28 : 0;
+    const forward = { x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw) };
+    const position = {
+      x: state.ship.position.x + forward.x * 38 + Math.cos(yaw) * offset,
+      y: state.ship.position.y,
+      z: state.ship.position.z + forward.z * 38 - Math.sin(yaw) * offset,
+    };
+    demoTarget = { type: "gate", layer: "space", position, radius: 12, direction: forward, label: id === "thrust" ? "FLIGHT GATE 01" : "BANK RIGHT · GATE 02" };
+  }
+  updateDemoDestination();
+}
+
+function updateDemoDestination() {
+  const id = demoStep(demoMission)?.id;
+  const body = state.spaceWorld?.bodies.find((value) => value.path === SAMPLE_LANDING_PATH);
+  if (["approach", "land"].includes(id) && state.layer.name === "space" && body) {
+    if (demoTarget?.type !== "destination") {
+      const direction = v(state.ship.position).sub(v(body.center)).normalize();
+      demoTarget = { type: "destination", layer: "space", position: v(body.center).addScaledVector(direction, body.landingRadius * .88), radius: 7, label: "OBSERVATORY · LANDING RING" };
+    }
+  } else if (["open", "discover"].includes(id) && state.layer.name === "planet") {
+    const path = id === "open" ? SAMPLE_FILE_PATH : DEMO_SIGNAL_PATH;
+    const atom = state.planetWorld?.atoms.find((value) => value.id === path);
+    demoTarget = atom ? { type: "destination", layer: "planet", position: atom.position, radius: Math.max(3, atom.radius + 2), label: id === "open" ? "README.md · OPEN E" : "SPECTRUM-01.csv · OPEN E" } : null;
+  }
+}
+
+async function tutorialAction(action) {
+  if (action === "folder") return chooseFolder();
+  if (action === "restart") return exploreSample();
+  if (action === "resume") { if (state.paused) togglePause(); return; }
+  if (state.source?.kind !== "sample" || state.connecting || state.choosing || transition()) return;
+  if (action === "atlas" || action === "find") {
+    openAtlas();
+    $("atlas-search").value = "spectrum-01.csv";
+    renderAtlas();
+    return;
+  }
+  if (action === "overlay") return cycleOverlay();
+  state.paused = false;
+  updatePauseButton();
+  if (action === "land" || action === "takeoff") return landOrTakeoff();
+  if (action === "open") return scanFile();
+  const id = demoStep(demoMission)?.id;
+  if (action === "reset" && ["thrust", "steer", "brake"].includes(id)) {
+    if (state.layer.name !== demoCheckpoint.layer) return toast("Return to space or restart the demo to retry this gate.");
+    manualControl();
+    clearInput();
+    state.ship = structuredClone(demoCheckpoint.ship);
+    demoPreviousPosition = { ...state.ship.position };
+    if (id !== "brake") state.ship.velocity = zero();
+    state.layer.capture = { armed: true, bodyId: null, held: false };
+    state.holding = id !== "brake";
+    trail = [];
+    tutorialExperience.manualThrust = tutorialExperience.manualSteer = tutorialExperience.braking = false;
+    tutorialExperience.thrustIntent = tutorialExperience.steerIntent = tutorialExperience.gateReached = false;
+    $("scene").focus({ preventScroll: true });
+    return;
+  }
+  const body = state.spaceWorld.bodies.find((value) => value.path === SAMPLE_LANDING_PATH);
+  if (!body) return;
+  if (["assist", "fly", "reset"].includes(action)) {
+    const path = id === "discover" ? DEMO_SIGNAL_PATH : SAMPLE_FILE_PATH;
+    if (["open", "discover", "overlay"].includes(id)) {
+      setCourse({ kind: "atom", planetId: body.id, id: path, path, name: path.split("/").at(-1) });
+    } else setCourse({ kind: "body", planetId: body.id, name: body.name });
+  }
+  $("scene").focus({ preventScroll: true });
+}
+
+function demoFacts() {
+  if (!demoMission) return {};
+  const atom = scanCandidate();
+  const targetDistance = demoTarget ? distance(state.ship.position, demoTarget.position) : 0;
+  const startDistance = demoTarget && demoStageStart ? distance(demoStageStart.position, demoTarget.position) : 1;
+  const targetPath = demoStep(demoMission)?.id === "discover" ? DEMO_SIGNAL_PATH : SAMPLE_FILE_PATH;
+  return {
+    ...tutorialExperience,
+    layer: state.layer.name, planetId: state.layer.planetId,
+    speed: length(state.ship.velocity),
+    distance: targetDistance,
+    gateProgress: clamp(1 - targetDistance / Math.max(1, startDistance), 0, 1),
+    nearFile: atom?.id === targetPath && distance(atom.position, state.ship.position) <= C.OPEN_RANGE,
+    landingAvailable: state.layer.name === "space" && landable(state.spaceWorld, state.ship.position)?.id === SAMPLE_LANDING_PATH,
+    routeActive: !!state.route, viewerOpen: fileViewer.isOpen,
+    overlay: state.overlays[surface() ? "planet" : "space"],
+    paused: state.paused || anyDialog() || document.hidden,
+  };
+}
+
+function advanceDemo(dt) {
+  if (!tutorial.getState().active || !demoMission) return;
+  updateDemoDestination();
+  if (dt > 0 && demoMission.status === "playing") {
+    tutorialExperience.manualThrust ||= tutorialExperience.thrustIntent && length(state.ship.velocity) > 3;
+    const turn = state.ship.yaw - demoStageStart.yaw;
+    tutorialExperience.manualSteer ||= tutorialExperience.steerIntent && Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > .14;
+    tutorialExperience.gateReached ||= demoTarget?.type === "gate" && state.layer.name === "space" && crossedDemoGate(demoPreviousPosition, state.ship.position, demoTarget);
+  }
+  demoPreviousPosition = { ...state.ship.position };
+  const before = demoMission;
+  demoMission = updateDemoMission(demoMission, demoFacts(), dt);
+  if (before.index !== demoMission.index) {
+    enterDemoStep();
+    // A new brake challenge starts with real residual velocity from the second gate.
+    if (demoStep(demoMission)?.id === "brake") clearInput();
+  }
+}
+
+function updateTutorial() {
+  if (!tutorial.getState().active || !demoMission) return;
+  tutorial.update({ mission: demoMission, facts: demoFacts() });
+}
+
+let demoCameraFrame = "", demoVisibleArea = null;
+function frameDemoCamera() {
+  const compact = tutorial.getState().active && innerWidth <= 700;
+  const top = compact ? document.querySelector("header").getBoundingClientRect().bottom + 36 : 0;
+  const bottom = compact ? $("tutorial-guide").getBoundingClientRect().top - 12 : innerHeight;
+  demoVisibleArea = compact ? { top, bottom } : null;
+  const frame = `${compact}:${innerWidth}:${innerHeight}:${top}:${bottom}`;
+  if (frame === demoCameraFrame) return;
+  demoCameraFrame = frame;
+  camera.fov = compact ? 68 : 52;
+  camera.aspect = innerWidth / innerHeight;
+  if (compact) {
+    // Frame the ship and gates in the open space above the mobile cockpit.
+    const center = top + Math.max(0, bottom - top) * .38;
+    camera.setViewOffset(innerWidth, innerHeight, 0, innerHeight / 2 - center, innerWidth, innerHeight);
+  } else camera.clearViewOffset();
+}
+
+function drawDemo() {
+  const active = tutorial.getState().active && !!demoTarget && demoTarget.layer === state.layer.name && !transition() && !anyDialog();
+  demoRenderer.update({ active, target: demoTarget, ship: state.ship, camera, time: state.time, status: demoMission?.status, progress: demoFacts().gateProgress });
+  demoMarker.hidden = !active;
+  if (!active) return;
+  const point = demoProjection.copy(demoTarget.position).project(camera);
+  camera.getWorldDirection(demoCameraDirection);
+  const behind = demoToTarget.copy(demoTarget.position).sub(camera.position).dot(demoCameraDirection) < 0;
+  let x = (point.x * .5 + .5) * innerWidth, y = (-point.y * .5 + .5) * innerHeight;
+  if (behind) { x = innerWidth - x; y = innerHeight / 2; }
+  const top = demoVisibleArea ? demoVisibleArea.top + 72 : 145;
+  const bottom = demoVisibleArea ? Math.max(top, demoVisibleArea.bottom - 8) : innerHeight - 215;
+  const offscreen = behind || x < 55 || x > innerWidth - 55 || y < top || y > bottom;
+  const markerMargin = innerWidth <= 700 ? 90 : 110;
+  x = clamp(x, markerMargin, innerWidth - markerMargin);
+  y = clamp(y - 35, top, bottom);
+  demoMarker.style.left = `${x}px`;
+  demoMarker.style.top = `${y}px`;
+  demoMarker.dataset.offscreen = String(offscreen);
+  demoMarker.dataset.status = demoMission.status;
+  demoMarker.querySelector("strong").textContent = demoTarget.label;
+  demoMarker.querySelector("small").textContent = `${Math.round(distance(state.ship.position, demoTarget.position))} u${offscreen ? " · turn toward beacon" : ""}`;
+  demoMarker.querySelector(".demo-target-arrow").textContent = offscreen ? (x < innerWidth / 2 ? "←" : "→") : "◇";
+}
+
 async function chooseFolder() {
   if (state.connecting || state.choosing) return;
   cancelShot();
@@ -925,6 +1164,7 @@ function advanceLayer(dt) {
     );
     state.layer = layerReducer(state.layer, { type: "ascended" });
     state.lastTakeoffAt = Date.now();
+    if (state.transitionBody?.path === SAMPLE_LANDING_PATH) tutorialExperience.liftedOff = true;
     state.previousInstruments = null;
     trail = [];
   }
@@ -961,6 +1201,10 @@ function updateCapture() {
 }
 function resetShip() {
   if (!activeWorld() || transition()) return;
+  if (tutorial.getState().active && ["thrust", "steer", "brake"].includes(demoStep(demoMission)?.id)) {
+    if (demoMission.status === "playing") return tutorialAction("reset");
+    return;
+  }
   cancelShot();
   manualControl();
   state.probe = null;
@@ -974,6 +1218,7 @@ function resetShip() {
         simulationTime: 0,
       };
   state.holding = surface();
+  demoPreviousPosition = { ...state.ship.position };
   state.focusedFileId = surface() ? state.planetWorld.landingTargetId : null;
   state.layer.capture = { armed: true, bodyId: null, held: false };
   toast(
@@ -1042,6 +1287,7 @@ async function openAtom(atom, via = "manual") {
     return false;
   if (opened) {
     state.charted.add(atom.id);
+    tutorialExperience.openedFiles = [...new Set([...(tutorialExperience.openedFiles || []), atom.id])];
     if (tourArrival) dispatchTour({ type: "opened" });
   } else if (tourArrival) dispatchTour({ type: "openFailed" });
   return opened;
@@ -1627,6 +1873,7 @@ function openAtlas() {
   state.atlasMode = "local";
   $("atlas-search").value = "";
   $("atlas").showModal();
+  tutorialExperience.atlasOpened = true;
   renderAtlas();
 }
 async function renderAtlas() {
@@ -1823,6 +2070,7 @@ function atlasRow(title, detail) {
 }
 
 function cycleOverlay() {
+  tutorialExperience.overlayChanges = (tutorialExperience.overlayChanges || 0) + 1;
   const layer = surface() ? "planet" : "space",
     modes =
       layer === "space"
@@ -1837,7 +2085,7 @@ function cycleOverlay() {
 }
 function updateOverlay() {
   const mode = state.overlays[surface() ? "planet" : "space"];
-  $("overlay-legend").hidden = mode === "off";
+  $("overlay-legend").hidden = mode === "off" || !state.source || !state.launched;
   $("overlay-legend").dataset.mode = mode;
   text("overlay-label", mode.toUpperCase());
   text(
@@ -1994,7 +2242,7 @@ function updateHUD(dt) {
       ? `${data.survey.pending} SURVEYING · ${data.survey.partial} PARTIAL`
       : "CHOOSE A FOLDER",
   );
-  text("privacy-note", "FILES STAY LOCAL");
+  text("privacy-note", state.source?.kind === "sample" ? "SAMPLE DATA · IN MEMORY" : "FILES STAY LOCAL");
   if (state.spaceWorld) {
     if (surface() && state.planetWorld) {
       text("stat-label-1", "MOLECULES");
@@ -2181,6 +2429,7 @@ function updateHUD(dt) {
     : "Land";
   updateOverlay();
   updateMission();
+  updateTutorial();
   $("scene").dataset.telemetry = JSON.stringify(diagnostics());
 }
 function diagnostics() {
@@ -2194,6 +2443,7 @@ function diagnostics() {
       !!activeWorld() &&
       (state.layer.name !== "planet" || state.layer.payloadReady),
     modelAssets: { ready: true, source: "Blender / GLB", names: assets.names },
+    tutorial: { ...tutorial.getState(), target: demoTarget ? { ...demoTarget, position: { x: demoTarget.position.x, y: demoTarget.position.y, z: demoTarget.position.z } } : null, facts: demoMission ? demoFacts() : null },
     source: state.source
       ? {
           kind: state.source.kind,
@@ -2335,6 +2585,8 @@ window.__SPACE__ = window.__SPACE_DRIFT__ = Object.freeze({
 });
 
 $("choose-folder").addEventListener("click", chooseFolder);
+$("explore-sample").addEventListener("click", exploreSample);
+$("sample-guide-button").addEventListener("click", exploreSample);
 $("folder-button").addEventListener("click", chooseFolder);
 $("snapshot-picker").addEventListener("click", chooseSnapshot);
 $("folder-input").addEventListener("change", () => {
@@ -2439,6 +2691,9 @@ function keyDown(code) {
         state.destination = null;
       } else manualControl();
       keys.add(code);
+      if (code === "Space") tutorialExperience.braking = true;
+      else if (["KeyW", "ArrowUp"].includes(code)) tutorialExperience.thrustIntent = true;
+      else if (["KeyA", "KeyD", "ArrowLeft", "ArrowRight"].includes(code)) tutorialExperience.steerIntent = true;
       tapUntil.set(code, performance.now() + 90);
     }
     return;
@@ -2447,7 +2702,9 @@ function keyDown(code) {
 }
 addEventListener("keydown", (event) => {
   if (
-    (event.target instanceof Element && event.target.closest("a[href]")) ||
+    (event.target instanceof Element && (event.target.closest("a[href]") ||
+      (["Space", "Enter"].includes(event.code) && event.target.closest("button")) ||
+      (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"].includes(event.code) && event.target.closest(".tutorial-content")))) ||
     event.target instanceof HTMLInputElement ||
     event.target instanceof HTMLTextAreaElement ||
     anyDialog()
@@ -2567,6 +2824,8 @@ function animate(time) {
     }
     updateProbe();
   }
+  advanceDemo(paused ? 0 : dt);
+  frameDemoCamera();
   const onSurface = surface(),
     world = activeWorld();
   showcase.update({ visible: !world && !state.source, time: state.time, compact: innerWidth <= 700, reducedMotion: reducedMotion.matches });
@@ -2688,6 +2947,7 @@ function animate(time) {
   probeMesh.visible = !!state.probe;
   if (state.probe) probeMesh.position.copy(v(state.probe.position));
   updateHUD(dt);
+  drawDemo();
   renderer.render(scene, camera);
 }
 addEventListener("resize", () => {

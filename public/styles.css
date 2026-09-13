@@ -229,7 +229,7 @@
 .intro .folder-error{color:var(--coral);max-width:340px;line-height:1.6;font-size:11px}
 .source-note{border-top:1px solid var(--line);padding-top:12px;margin:14px 0 0;color:var(--soft);font-size:10px;line-height:1.6}
 .source-actions{display:flex;justify-content:space-between;gap:12px;margin-top:12px}
-.source-actions:has(button[hidden]){display:none}
+.source-actions:has(button[hidden]):not(:has(button:not([hidden]))){display:none}
 
 @media(min-width:1051px) and (max-width:1390px){.version{display:none}}
 @media(max-width:1050px){header{gap:16px}.local-tag{display:none}}
@@ -394,3 +394,22 @@ header .folder-button{margin-left:0;white-space:nowrap}
 body:has(#intro:not([hidden])):has(#launch[hidden]) .welcome-shade{display:block}
 body:has(#intro:not([hidden])):has(#launch[hidden]) .instrument-stack{visibility:hidden}
 @media(max-width:700px){.welcome-shade{background:linear-gradient(90deg,#080b18,rgba(8,11,24,.8) 44%,rgba(8,11,24,.5))}}
+
+/* A permission-free first flight sits alongside the personal folder picker. */
+.sample-entry{display:flex;align-items:center;gap:12px;width:310px;max-width:100%;padding:15px 16px;margin-top:12px;text-align:left;color:var(--ink);border:1px solid #6579b25e;background:linear-gradient(110deg,#aab8ff12,#68e4ef06);border-radius:7px;transition:border-color .2s,background .2s}
+.sample-entry>.icon{width:24px;height:24px;color:var(--cyan)}
+.sample-entry>span{font-size:12px;line-height:1.5}
+.sample-entry small{display:block;margin-top:3px;font-size:9px;color:var(--soft);font-weight:400}
+.sample-entry .sample-entry-arrow{margin-left:auto;font-size:21px;color:var(--accent)}
+.sample-entry:hover{border-color:var(--accent);background:#aab8ff18}
+.sample-entry:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+.sample-entry:disabled{opacity:.5;cursor:wait}
+.manual-sample{border:1px solid var(--line);border-radius:6px;padding:14px;margin:12px 0 22px;background:#aab8ff08}
+.manual-sample p{color:var(--soft);font-size:11px;line-height:1.6;margin:10px 0 0}
+body.sample-mode .center-top .live-pip{background:var(--lilac)}
+@media(max-height:850px) and (min-width:701px){body:has(#intro:not([hidden])) .activity{display:none}}
+@media(max-width:700px){.sample-entry{width:300px;padding:12px 14px}.sample-entry>span{font-size:11px}.sample-entry small{font-size:8px}.intro:has(#explore-sample:not([hidden])){max-height:calc(100dvh - var(--header-height) - 175px);overflow-y:auto;padding:0 5px 12px 0;overscroll-behavior:contain}.intro:has(#explore-sample:not([hidden])) h1{font-size:48px;margin:15px 0}.intro:has(#explore-sample:not([hidden])) h1 em{font-size:58px}.intro:has(#explore-sample:not([hidden])) .primary{margin-top:15px}.intro:has(#explore-sample:not([hidden])) .intro-note{margin-top:10px}}
+@media(max-width:700px){
+  body.tutorial-active #toast{visibility:hidden}
+  body:has(#intro:not([hidden])) #overlay-legend,body:has(#intro:not([hidden])) #tour-note{display:none}
+}

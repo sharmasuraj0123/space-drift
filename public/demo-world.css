@@ -1,0 +1,11 @@
+#demo-target-marker{position:fixed;z-index:5;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:5px;color:#a8fbec;text-align:center;text-shadow:0 2px 12px #030918;width:200px;max-width:calc(100vw - 28px)}
+#demo-target-marker .demo-target-arrow{font-size:27px;line-height:1;color:#8af7e3;filter:drop-shadow(0 0 8px #68e4ef88)}
+#demo-target-marker strong{font:9px/1.4 monospace;letter-spacing:1px;background:#091727dd;padding:5px 8px;border:1px solid #68e4ef66;border-radius:4px}
+#demo-target-marker small{font:10px/1.4 monospace;color:#eef2ff;background:#091727c9;padding:2px 6px;border-radius:3px}
+#demo-target-marker[data-status=celebrating] strong{color:#101b27;background:#9cf4d9;border-color:#caffed}
+#demo-target-marker[data-offscreen=true] .demo-target-arrow{font-size:32px}
+body.tutorial-active .activity,body.tutorial-active .mission{visibility:hidden}
+body.tutorial-active .tour-note{display:none}
+body.tutorial-active:has(#tutorial-guide:is([data-step=thrust],[data-step=steer],[data-step=brake])) .layer-prompt{display:none}
+@media(max-width:700px){#demo-target-marker{z-index:4;width:160px}#demo-target-marker strong{font-size:8px}#demo-target-marker small{font-size:9px}body.tutorial-active .layer-prompt{max-width:80vw;font-size:8px}body.tutorial-active #toast{visibility:hidden}}
+@media(max-width:360px){.flight-readout{right:12px;min-width:48px}.flight-readout strong{font-size:22px}.flight-readout .eyebrow{font-size:5px}.flight-readout .speed-track{width:44px}}

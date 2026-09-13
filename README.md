@@ -4,6 +4,26 @@
 
 Fly a small ship through your local workspace as a two-layer universe. Repositories are planets; land on one to explore its folders as molecules and files as atoms. Bytes create mass, recent changes add excitation, and that excitation produces gravity, heat, and light which fade together. Press E to open an atom in a read-only local viewer.
 
+## Play the sample mission
+
+Choose **Explore sample folder** on the welcome screen to start a playable flight mission without granting folder access. The built-in Kepler workspace contains 39 fictional observatory notes, navigation modules, tables, and illustrations across three repository planets and a loose-file belt. Everything stays in browser memory. The mission uses the game's normal map, physics, Atlas, landing transitions, and read-only viewer.
+
+Complete nine objectives through your actions. Each awards 100 points, for a final score of **900**:
+
+1. Use manual thrust to fly through the first gate.
+2. Steer through the second gate.
+3. Brake until your speed drops below 2 units per second.
+4. Approach the observatory's landing ring.
+5. Land on the observatory.
+6. Open `observatory/README.md`, read it, and close the viewer.
+7. Change the physics overlay with G or its cockpit button.
+8. Search the Atlas for `spectrum-01.csv`, fly to the signals folder, open the file, and close its viewer.
+9. Lift off and return to space.
+
+Use the keyboard, touch controls, or the cockpit's press-and-hold flight buttons. **Reset checkpoint** gives you another attempt at a flight gate; **Assist approach** can help you reach the observatory. Objectives advance when completed, and pausing or opening a dialog freezes mission progress. **Exit demo** continues free flight in the sample. **Fly again** at mission completion (or **Restart playable demo** in the flight manual) creates a fresh sample and resets the ship, objectives, and score. You can also start the mission from the **H** flight manual; starting it from a personal folder switches to the sample workspace.
+
+Choose **Connect folder** when you are ready to explore your own data. That opens the usual browser folder picker and replaces the sample after a successful selection. The sample contains no personal files, live edits, or Git history and writes no files to disk. It works on the static preview and Vercel without a scanning server or `/api` requests; the browser still loads ordinary application assets.
+
 ## Inside the universe
 
 Real application captures from a synthetic local workspace, at 1280×800. No personal files are shown.
@@ -20,7 +40,7 @@ See the [asset guide](assets/README.md) for model bounds and triangle counts, ed
 
 ## Use a local folder in the browser
 
-Open the hosted HTTPS app and choose a folder through the folder button. The browser grants Space Drift read access to that selection; files are not uploaded. WebGL is required for the game.
+Open the hosted HTTPS app and choose **Connect folder**, either from the welcome screen or after exploring the sample. The browser grants Space Drift read access to that selection; files are not uploaded. WebGL is required for both sample and personal-folder flight.
 
 - **Chrome and Edge:** the directory-handle picker allows the game to scan the chosen folder again every five seconds while the page is open. Edits and newly added or removed files become activity in the world. The picker requires a secure context (HTTPS, or a trusted loopback development address) and a direct click. See the [directory picker API](https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker).
 - **Other browsers:** the directory-input fallback provides a snapshot of the selected files through `webkitdirectory`. Choose the folder again to refresh it after changes. The browser may label the selection as an upload, but Space Drift processes that selection locally. Relative paths come from the [browser's File API](https://developer.mozilla.org/en-US/docs/Web/API/File/webkitRelativePath).
@@ -38,7 +58,7 @@ npm run build
 npm run preview
 ```
 
-Open [the static preview](http://127.0.0.1:4190) and choose a folder in the browser. `npm run build` produces `dist/` from the public app and committed GLB, plus the two Three.js runtime modules, local `GLTFLoader`, `BufferGeometryUtils`, and `SkeletonUtils` addons, and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C. Normal builds use the committed model pack and do not require Blender.
+Open [the static preview](http://127.0.0.1:4190) and choose **Explore sample folder** or connect a folder in the browser. `npm run build` produces `dist/` from the public app and committed GLB, plus the two Three.js runtime modules, local `GLTFLoader`, `BufferGeometryUtils`, and `SkeletonUtils` addons, and their license. The preview serves only this output directory on loopback, with no file-scanning API. Stop it with Ctrl+C. Normal builds use the committed model pack and do not require Blender.
 
 To regenerate the game models with Blender 5.2:
 
@@ -60,7 +80,7 @@ vercel link
 vercel deploy
 ```
 
-Check the preview's folder selection, flight, and E file opening before promoting or deploying production. `.vercelignore` excludes local project metadata, dependencies, generated output, environment files, and the optional Node backend from deployment uploads. Its `/assets/` rule excludes only the root source-art directory; `public/assets/` must remain included because it contains the required GLB and share images. The build fails if those files are absent or empty. The build publishes only browser assets; selected folders never enter the build or deployment.
+Check the preview's sample mission, folder selection, flight, and E file opening before promoting or deploying production. `.vercelignore` excludes local project metadata, dependencies, generated output, environment files, and the optional Node backend from deployment uploads. Its `/assets/` rule excludes only the root source-art directory; `public/assets/` must remain included because it contains the required GLB and share images. The build fails if those files are absent or empty. The build publishes only browser assets; selected folders never enter the build or deployment.
 
 ## Optional local server
 
@@ -95,8 +115,8 @@ The server stays on loopback. Stop it with Ctrl+C. Unlike the hosted app, it can
 | M | Layer-aware atlas, search, and route queue |
 | T | Guided tours, resume, skip, and exit |
 | G | Cycle the active layer's overlay |
-| Home | Return to this layer's launch or landing site |
-| Escape / H | Pause or resume / flight manual |
+| Home | Reset the checkpoint during the first three demo objectives; otherwise return to this layer's launch or landing site |
+| Escape / H | Pause or resume / flight manual and sample-mission restart |
 
 A one-body folder starts on its surface. A larger workspace starts in space. The first expedition asks you to chart five available atoms and land on up to three available bodies, so small folders remain completable. Touch buttons provide steering, thrust, braking, altitude, opening, probes, landing, tours, and overlays; **Details** opens the instrument panel on a narrow screen.
 
@@ -140,7 +160,7 @@ Create a JSON definition in `<workspace>/.space/tours/` or `<body>/.space/tours/
 
 File and molecule paths are body-relative; atom identity and copied viewer paths are workspace-relative. Omit `planet` in a per-body definition. Root repository id is `.`; loose belt and overflow ids are `__belt__` and `__overflow__`. Actual repositories with reserved names use an escaped id shown by the API. A body-only stop is a space fly-by. Definitions allow 1–64 stops; invalid definitions get individual errors and unmapped stops are skipped. Notes render as plain text.
 
-When no authored onboarding tour exists, a generated tour visits the three heaviest bodies and two brightest, then explores the brightest body's readable entry points. Up to seven local stops prioritize README, PROJECT, PLAN, AGENTS/CLAUDE, package metadata, an entry point, the main source molecule and tests. Available file slots extend the route toward the five-file expedition. The separate action-gated onboarding redesign is not part of these guided tours.
+When no authored onboarding tour exists, a generated tour visits the three heaviest bodies and two brightest, then explores the brightest body's readable entry points. Up to seven local stops prioritize README, PROJECT, PLAN, AGENTS/CLAUDE, package metadata, an entry point, the main source molecule and tests. Available file slots extend the route toward the five-file expedition. These T tours explore workspace content. The sample mission teaches flight and file exploration through nine playable objectives and can be restarted from H.
 
 In M, search for atoms and **Queue** several, then choose **Fly this route**. **Copy route JSON** in T exports the route to your clipboard. The game never writes tour files into the mapped folder.
 
@@ -156,7 +176,7 @@ Optional Node mode on macOS can open supported documents in their desktop app an
 
 ## Local data access and bounds
 
-Selected folders and previews stay on your device. No world payload contains file contents, and nothing is sent to Vercel, a database, or an AI service. The static host receives ordinary application-asset requests. Directory handles last for the page session; disconnecting or switching clears the previous world, caches, route, tour, probes and previews.
+Selected folders and previews stay on your device. No world payload contains file contents, and nothing is sent to Vercel, a database, or an AI service. The static host receives ordinary application-asset requests. The built-in sample creates fictional `File` objects in memory without opening a personal folder or calling the scanning API. Directory handles last for the page session; disconnecting or switching clears the previous world, caches, route, tour, demo mission, probes and previews.
 
 The application builds physics from metadata and Git statistics. Git itself may read working-tree data internally to compute dirty diffs; the game adds no separate working-tree text reader for physics. Git runs read-only with fixed argument arrays, optional locks disabled, and external diff/text conversion disabled. A linked worktree can reference a Git directory outside the mapped root; an unavailable directory falls back to snapshot excitation. Bounded `.space/tours` JSON and eligible package entry-point metadata are narrow, explicit content reads for tour navigation. A user-requested file preview is a separate content read.
 
@@ -174,15 +194,19 @@ npm run check
 npm run build
 ```
 
-The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, HTTP file boundaries, and the GLB model contract and resource ownership. `npm run assets:capture` checks model readiness and console/GPU errors while flying real routes through a disposable synthetic workspace, opening a file, lifting off, disconnecting, and reconnecting. See the [asset guide](assets/README.md) for browser setup and [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
+Run `npm run verify:sample` with Chrome installed to check the playable sample mission, file opening, restart, mobile controls and handoff to a local folder. The script uses a temporary static preview and synthetic local folder, and saves screenshots in `artifacts/sample/`.
 
-`window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, probes, lighting, renderer counters, and `modelAssets` readiness/source/names. These expose observation only; journeys are tested through normal game controls.
+The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, HTTP file boundaries, the sample's in-memory source, action-gated mission progression, pause and celebration timing, and the GLB model contract and resource ownership. `npm run assets:capture` checks model readiness and console/GPU errors while flying real routes through a disposable synthetic workspace, opening a file, lifting off, disconnecting, and reconnecting. See the [asset guide](assets/README.md) for browser setup and [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
+
+`window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, demo objective/score/target data under `tutorial`, probes, lighting, renderer counters, and `modelAssets` readiness/source/names. These expose observation only; journeys are tested through normal game controls.
 
 | Files | Responsibility |
 | --- | --- |
 | `lib/discover.mjs`, `lib/scan.mjs`, `lib/git.mjs`, `lib/universe.mjs` | Optional Node discovery, bounded metadata and Git adapters |
 | `public/universe-core.js`, `public/universe-reader.js` | Shared aggregation, ledgers and asynchronous surveys |
 | `public/folder-source.js`, `public/server-source.js` | Browser and server source parity |
+| `public/sample-source.js` | Fictional in-memory workspace using the normal discovery and file APIs |
+| `public/demo-mission.js`, `public/demo-renderer.js`, `public/tutorial.js`, `public/tutorial.css` | Playable objectives, flight gates, target markers, score, and cockpit controls |
 | `public/constants.js`, `energy.js`, `bodies.js`, `field.js`, `model.js` | Derived physics, packing and ship simulation |
 | `public/layers.js`, `planet-loader.js`, `tours.js`, `probes.js` | Pure transitions, loading lifecycle, navigation and probes |
 | `public/light.js`, `render-space.js`, `render-planet.js`, `render-light.js`, `render-common.js` | Shared light model and separate layer rendering |

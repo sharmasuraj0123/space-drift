@@ -82,7 +82,7 @@ function changes(previous, current, at) {
   return result;
 }
 
-function source({ kind, name, scan, resolveFile }) {
+function source({ kind, name, scan, resolveFile, live = kind === 'directory' }) {
   let disposed = false;
   let previous = null;
   let events = [];
@@ -90,7 +90,7 @@ function source({ kind, name, scan, resolveFile }) {
   const lifetime = new AbortController();
   const ensureActive = (signal) => { if (disposed) throw abortError(); checkSignal(signal); };
   return {
-    kind, name, live: kind === 'directory',
+    kind, name, live,
     _scan: scan, _resolveFile: resolveFile,
     readWorld({ signal } = {}) {
       try { ensureActive(signal); } catch (error) { return Promise.reject(error); }
@@ -221,7 +221,7 @@ function createRawDirectorySource(handle, options = {}) {
     }
     return { records, complete, truncated, omitted: eligible.length - records.size, omittedIsLowerBound: omittedIsLowerBound || unreadable > 0, unreadable, directories, repoDirectories };
   };
-  return source({ kind: 'directory', name, scan, resolveFile: async (filePath, entry, signal) => {
+  return source({ kind: 'directory', name, scan, live: options.live ?? true, resolveFile: async (filePath, entry, signal) => {
     let current = handle;
     const segments = filePath.split('/');
     for (const segment of segments.slice(0, -1)) current = await guarded(current.getDirectoryHandle(segment, { create: false }), signal);
