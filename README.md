@@ -144,14 +144,18 @@ Space overlays show curvature, energy, or light. Surface overlays show bonds, te
 
 A tour sequences routes, notes, file reading and short pauses. Closing a file advances the tour; steering or L pauses it, including across a layer change. T resumes from your current position. Completion shows visited stops, distance flown and files opened, with choices to fly again or explore freely.
 
-Create a JSON definition in `<workspace>/.space/tours/` or `<body>/.space/tours/`:
+Choose **T → Create / edit draft** to build a tour visually. Use **Add stops from Atlas** and each destination's **Add to tour** button to collect files, folders, or body landing sites, or add the selected object directly. Give each stop a title and explanation, move it up or down, remove it, and choose whether to open a file or pause at its destination. **Validate stops** checks the connected workspace and explains missing or unavailable destinations. **Preview tour** uses the normal navigation and progression, skipping unavailable stops; return to **Create / edit draft** to continue editing.
+
+**Export JSON** downloads a definition compatible with the tour loader, including its 128 KiB file limit. **Import or start a new tour** accepts an existing JSON file (up to 1 MB); choose its body first if its paths are body-relative and omit `planet`. You can also choose **Edit** beside a listed tour. Importing or editing another tour replaces the current draft, so export first to keep it. Drafts stay in memory, survive closing the editor and previewing, and clear on reload, disconnect, or workspace switch. No tour is written to the workspace automatically.
+
+To make an exported tour available in the tour list, place its JSON definition in `<workspace>/.space/tours/` or `<body>/.space/tours/`:
 
 ```json
 {
   "id": "read-first",
   "title": "Start with the map",
   "stops": [
-    { "planet": "apps/my-project", "path": "README.md", "note": "Start here.", "open": true },
+    { "planet": "apps/my-project", "path": "README.md", "title": "Start here", "note": "Read the project overview.", "open": true },
     { "planet": "apps/my-project", "molecule": "src", "note": "Explore the source.", "dwellSeconds": 3 },
     { "planet": "apps/another-project", "path": "src/main.js", "open": true }
   ]
@@ -199,6 +203,8 @@ Run `npm run verify:previews` with Chrome installed to verify rich reader format
 Run `npm run verify:sample` with Chrome installed to check the playable sample mission, file opening, restart, mobile controls and handoff to a local folder. The script uses a temporary static preview and synthetic local folder, and saves screenshots in `artifacts/sample/`.
 
 The Node test suite covers discovery, independent survey scheduling, Git statistics, excitation replay, additive mass, deterministic packing, conservative field derivatives, grid curvature, frame-rate-independent flight, layer guards, cached/retried loads, tour state, targeting, light accounting, browser handles, HTTP file boundaries, the sample's in-memory source, action-gated mission progression, pause and celebration timing, and the GLB model contract and resource ownership. `npm run assets:capture` checks model readiness and console/GPU errors while flying real routes through a disposable synthetic workspace, opening a file, lifting off, disconnecting, and reconnecting. See the [asset guide](assets/README.md) for browser setup and [implementation and verification notes](docs/spacetime-implementation.md) for the current branch's browser checks and measured budgets.
+
+`npm run verify:tours` exercises the visual editor in Chromium: Atlas and selected-object stops, annotations, ordering/removal, import/export, missing-stop explanations, preview playback, mobile layout, and draft disposal on disconnect. Install its browser with `npx playwright install chromium`; screenshots are saved under `artifacts/tour-editor/`.
 
 `window.__SPACE__.getState()` and its `window.__SPACE_DRIFT__` alias return independent read-only diagnostic snapshots. The same data appears on `#scene[data-telemetry]`: layers, flight state, field values, bodies, landed atoms, sums, survey status, routes, tours, demo objective/score/target data under `tutorial`, probes, lighting, renderer counters, and `modelAssets` readiness/source/names. These expose observation only; journeys are tested through normal game controls.
 

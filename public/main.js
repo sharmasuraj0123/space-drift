@@ -37,6 +37,7 @@ import {
   exportTour,
   refreshTourState,
 } from "./tours.js";
+import { createTourEditor } from "./tour-editor.js";
 import { createPlanetLoader } from "./planet-loader.js";
 import {
   selectTarget,
@@ -161,6 +162,24 @@ const fileViewer = createFileViewer({
     if (!resetting) dispatchTour({ type: "viewerClosed" });
     $("scene").focus({ preventScroll: true });
   },
+});
+const tourEditor = createTourEditor({
+  getWorkspace: () => {
+    const loader = state.loader;
+    return { bodies: state.spaceWorld?.bodies || [], loadPlanet: (id) => loader.load(id, { fresh: true }) };
+  },
+  getSelection: () => {
+    const atom = state.planetWorld?.atoms.find((a) => a.id === state.focusedFileId);
+    if (atom) return { planet: state.layer.planetId, path: atom.path, title: atom.name || atom.path };
+    const target = state.route?.target || state.reticle.target?.object;
+    if (!target) return null;
+    if (target.kind === "molecule") return { planet: target.planetId, molecule: target.id, title: target.name || target.id };
+    if (target.kind === "atom" || target.path && surface()) return { planet: target.planetId || state.layer.planetId, path: target.path, title: target.name || target.path };
+    return { planet: target.planetId || target.id, molecule: ".", title: target.name || target.id };
+  },
+  onOpen: () => { pauseTour(); clearInput(); closePanels(); },
+  onAtlas: openAtlas,
+  onPreview: startTour,
 });
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#080b18");
@@ -500,6 +519,7 @@ function clearFolderWorld() {
   state.tour = null;
   state.tours = [];
   state.queue = [];
+  tourEditor.reset();
   state.probe = null;
   state.lastFired = -Infinity;
   state.charted.clear();
@@ -1736,6 +1756,7 @@ function renderTourPanel() {
       "atlas-row",
     );
     button.title = tour.description || "";
+    addButton($("tour-list"), `Edit ${tour.title}`, () => tourEditor.open(tour));
   }
   for (const error of state.tourErrors) {
     const p = document.createElement("p");
@@ -1759,7 +1780,7 @@ function renderTourPanel() {
   );
   for (const [index, stop] of (tour?.stops || []).entries()) {
     const li = document.createElement("li");
-    li.textContent = `${nameOf(stop.planet)} / ${stop.path || stop.molecule || "Fly by"}${stop.missing ? " · missing" : ""}`;
+    li.textContent = `${stop.title ? stop.title + " · " : ""}${nameOf(stop.planet)} / ${stop.path || stop.molecule || "Fly by"}${stop.missing ? " · missing" : ""}`;
     li.classList.toggle("current", index === tour.index);
     if (index === tour.index) li.setAttribute("aria-current", "step");
     $("tour-stops").append(li);
@@ -1848,6 +1869,7 @@ function queueAtom(atom, planetId) {
 function renderQueue() {
   const parent = $("atlas-route-actions");
   parent.replaceChildren();
+  addButton(parent, "Tour editor", () => tourEditor.open());
   if (!state.queue.length) return;
   const info = document.createElement("span");
   info.textContent = `${state.queue.length} atoms queued`;
@@ -1950,6 +1972,7 @@ async function renderAtlas() {
           name: atom.name,
         }),
       );
+      addButton(row, "Add to tour", () => tourEditor.add({ planet: atom.planetId, path: relative, title: atom.name || relative }));
       const queue = addButton(row, "Queue", () => {
         queueAtom(a, atom.planetId);
         queue.setAttribute(
@@ -1982,6 +2005,7 @@ async function renderAtlas() {
         `${formatBytes(molecule.molecularMass)} · ${count} atoms · T ${number(molecule.temperature)}${molecule.repo ? " · nested repository" : ""}${molecule.worktree ? " · worktree" : ""}`,
       );
       row.style.setProperty("--depth", molecule.depth);
+      addButton(row, "Add to tour", () => tourEditor.add({ planet: state.layer.planetId, molecule: molecule.id, title: molecule.path || "Landing site" }));
       addButton(row, "Fly there", () =>
         setCourse({
           kind: "molecule",
@@ -2040,6 +2064,7 @@ async function renderAtlas() {
         }),
       );
       land.disabled = fly.disabled = !!body.survey?.pending;
+      addButton(row, "Add to tour", () => tourEditor.add({ planet: body.id, molecule: ".", title: body.name }));
       if (body.kind === "overflow") {
         const details = document.createElement("details"),
           summary = document.createElement("summary");
@@ -2207,6 +2232,7 @@ function updateHUD(dt) {
     !state.tour ||
     !["dwelling", "opening", "reading"].includes(state.tour.status);
   text("tour-note-text", state.tour?.stops[state.tour.index]?.note || "");
+  text("tour-note-title", state.tour?.stops[state.tour.index]?.title || "GUIDED TOUR");
   $("destination").hidden = !state.route;
   const destination = state.destination;
   if (state.route) {
@@ -2632,6 +2658,7 @@ $("tour-back").addEventListener("click", () => skipTour(-1));
 $("tour-next").addEventListener("click", () => skipTour(1));
 $("tour-exit").addEventListener("click", exitTour);
 $("tour-export").addEventListener("click", copyTour);
+$("tour-edit").addEventListener("click", () => tourEditor.open());
 document
   .querySelectorAll(".close-dialog,.close-manual")
   .forEach((button) =>
