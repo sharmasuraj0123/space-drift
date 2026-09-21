@@ -19,7 +19,7 @@ export function validateTour(input, { defaultPlanet = null, sourceId = '', scope
     if (planet == null && raw.path == null && molecule == null) return fail(`Stop ${index + 1} has no destination.`);
     if (raw.open != null && typeof raw.open !== 'boolean') return fail(`Stop ${index + 1} open must be true or false.`);
     if (raw.dwellSeconds != null && (!Number.isFinite(raw.dwellSeconds) || raw.dwellSeconds < 0 || raw.dwellSeconds > 120)) return fail(`Stop ${index + 1} dwell must be between 0 and 120 seconds.`);
-    stops.push({ planet, ...(raw.path != null ? { path: raw.path } : {}), ...(molecule != null ? { molecule } : {}), note: text(raw.note, 2000), open: raw.path != null && raw.open !== false, dwellSeconds: raw.dwellSeconds ?? 2 });
+    stops.push({ planet, ...(raw.path != null ? { path: raw.path } : {}), ...(molecule != null ? { molecule } : {}), title: text(raw.title, 160), note: text(raw.note, 2000), open: raw.path != null && raw.open !== false, dwellSeconds: raw.dwellSeconds ?? 2 });
   }
   return { tour: { id: input.id, key: `${sourceId || scopeId || defaultPlanet || 'root'}:${input.id}`, title: text(input.title, 160) || input.id, description: text(input.description, 1000), planet: defaultPlanet, stops }, error: null };
 }
@@ -88,7 +88,7 @@ export function generateOnboardingTour(space, payloads = []) {
 
 export function createTourState(tour) {
   if (!tour?.stops?.length) return null;
-  return { id: tour.id, key: tour.key || tour.id, title: tour.title || tour.id, stops: tour.stops.map((s) => ({ ...s })), index: 0, status: 'travelling', elapsed: 0, visited: [], opened: [], skipped: [], distance: 0, pausedFrom: null };
+  return { id: tour.id, key: tour.key || tour.id, title: tour.title || tour.id, description: tour.description || '', stops: tour.stops.map((s) => ({ ...s })), index: 0, status: 'travelling', elapsed: 0, visited: [], opened: [], skipped: [], distance: 0, pausedFrom: null };
 }
 
 /** Availability may change during flight; a started itinerary keeps its destinations. */
@@ -96,7 +96,7 @@ export function refreshTourState(state, definition) {
   if (!state || !definition || (definition.key || definition.id) !== state.key) return state;
   return { ...state, stops: state.stops.map((stop) => {
     const fresh = definition.stops.find((candidate) => candidate.planet === stop.planet && candidate.kind === stop.kind && candidate.id === stop.id);
-    return fresh ? { ...stop, missing: !!fresh.missing, note: fresh.note } : { ...stop };
+    return fresh ? { ...stop, missing: !!fresh.missing, title: fresh.title, note: fresh.note } : { ...stop };
   }) };
 }
 function advance(state, index = state.index + 1) {
@@ -127,5 +127,5 @@ export function tourReducer(state, event) {
 }
 
 export function exportTour(state) {
-  return JSON.stringify({ id: state.id || 'my-route', title: state.title || 'My route', stops: state.stops.map(({ planet, path, molecule, note, open, dwellSeconds }) => ({ planet, ...(path != null ? { path } : {}), ...(molecule != null ? { molecule } : {}), note: note || '', open: !!open, dwellSeconds: dwellSeconds ?? 2 })) }, null, 2);
+  return JSON.stringify({ id: state.id || 'my-route', title: state.title || 'My route', description: state.description || '', stops: state.stops.map(({ planet, path, molecule, title, note, open, dwellSeconds }) => ({ planet, ...(path != null ? { path } : {}), ...(molecule != null ? { molecule } : {}), title: title || '', note: note || '', open: path != null && open !== false, dwellSeconds: dwellSeconds ?? 2 })) }, null, 2);
 }

@@ -288,6 +288,22 @@
 #tour-stops li[data-missing=true]{text-decoration:line-through;color:var(--subtle)}
 #tour-status{padding:12px;background:#aab8ff0a;border-radius:5px;font:11px/1.7 monospace}
 #tour-stops textarea{width:100%;min-height:180px;background:#080b18;border:1px solid var(--line);color:var(--soft);font:11px/1.5 monospace;padding:10px;resize:vertical}
+#tour-editor{width:min(680px,calc(100% - 28px))}
+#tour-editor label{display:grid;gap:6px;min-width:0;margin:12px 0;color:var(--soft);font-size:12px}
+#tour-editor input,#tour-editor textarea,#tour-editor select{width:100%;min-width:0;padding:9px;background:#080b18;border:1px solid var(--line);border-radius:4px;color:var(--ink);font:inherit}
+#tour-editor textarea{min-height:75px;resize:vertical}
+#tour-editor :is(input,textarea,select):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#editor-stops{padding-left:24px}
+.editor-stop{border:1px solid var(--line);border-radius:5px;padding:12px;margin:12px 0}
+.editor-stop[data-missing=true]{border-color:#e4ac76}
+.editor-destination{overflow-wrap:anywhere;color:var(--accent);font:11px/1.6 monospace}
+.editor-stop-status,#editor-status{font-size:12px;line-height:1.6;color:var(--soft)}
+.editor-stop[data-missing=true] .editor-stop-status{color:#e4ac76}
+#tour-editor .editor-checkbox{display:flex;align-items:center;gap:8px}
+#tour-editor .editor-checkbox input{width:auto}
+#tour-editor .tour-controls button{max-width:100%;overflow-wrap:anywhere}
+.editor-import{border-top:1px solid var(--line);padding-top:16px;font-size:12px;line-height:1.7}
+.editor-import summary{cursor:pointer;color:var(--accent)}
 .tour-note{position:fixed;left:36px;bottom:230px;width:260px;padding:16px}
 .tour-note p{font-size:12px;line-height:1.65;color:var(--soft);margin:10px 0 0}
 #constants{width:min(620px,calc(100% - 28px))}

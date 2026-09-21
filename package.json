@@ -9,6 +9,7 @@
     "dev": "node server.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:sample": "npm run build && node scripts/verify-sample.mjs",
+    "verify:tours": "npm run build && node scripts/verify-tour-editor.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
